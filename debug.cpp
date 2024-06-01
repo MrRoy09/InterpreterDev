@@ -1,0 +1,58 @@
+#include "debug.h"
+#include "chunk.h"
+#include <iostream>
+
+static int disassembleInstruction(Chunk* chunk, int opcode, int offset) {
+	if (offset == 0) {
+		std::cout << "Disassembling Chunk id " << chunk->id<<"\n";
+	}
+	switch (opcode)
+	{
+	case OP_RETURN:
+		std::cout <<" At line = " << chunk->lines[offset]<<" At Offset " << offset << " Instruction " << "RETURN" << "\n";
+		return offset + 1;
+		break;
+
+	case OP_CONSTANT:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "LOAD_CONSTANT" <<" = " <<chunk->constants[chunk->opcodes[offset+1]] << "\n";
+		return offset + 2;
+		break;
+	case OP_NEGATE:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_NEGATE" <<"\n";
+		return offset + 1;
+		break;
+	case OP_ADD:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_ADD" << "\n";
+		return offset + 1;
+		break;
+	case OP_SUB:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_SUB" << "\n";
+		return offset + 1;
+		break;
+	case OP_MUL:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_MUL" << "\n";
+		return offset + 1;
+		break;
+	case OP_DIV:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_DIV" << "\n";
+		return offset + 1;
+		break;
+
+	default:
+		std::cout<< " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "UNKNOWN"<< "\n";
+		return offset + 1;
+		break;
+	}
+}
+
+
+void disassembleChunk(Chunk* chunk)
+{
+	int offset = 0;
+	while(offset<chunk->opcodes.size()){
+		offset= disassembleInstruction(chunk, chunk->opcodes[offset], offset);
+	}
+
+}
+
+
