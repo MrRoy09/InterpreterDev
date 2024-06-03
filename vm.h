@@ -3,6 +3,9 @@
 #include "common.h"
 #include <iostream>
 #include "debug.h"
+#include <string>
+#include "compiler.h"
+
 
 typedef enum {
 	INTERPRET_OK,
@@ -15,22 +18,23 @@ public:
 	Chunk* chunk;
 	std::vector<double> stack;
 	int ip;
-	InterpretResult interpret(Chunk* chunk) {
-		//disassembleChunk(chunk);
-		this->chunk = chunk;
+
+	InterpretResult interpret(std::string source) {
+		Chunk chunk=Chunk(1);
+		const char* source_c_str = source.c_str();
+		Compiler compiler = Compiler(source_c_str,&chunk);
+		bool compilation_result = compiler.compile();
+		this->chunk = &chunk;
 		this->ip = 0;
-		while (ip < chunk->opcodes.size()) {
-			InterpretResult result= run();
-			stack_trace();
-			if (result == INTERPRET_COMPILE_ERROR || result == INTERPRET_RUNTIME_ERROR) {
-				return result;
-			}
+		while (ip < this->chunk->opcodes.size()) {
+			InterpretResult result = run();
 		}
+		
 		return INTERPRET_OK;
 	}
 
 	InterpretResult run() {
-		
+			stack_trace();	
 			int opcode = chunk->opcodes[this->ip];
 			switch (opcode)
 			{
@@ -38,6 +42,7 @@ public:
 				
 				std::cout << "EXECUTING RETURN" << "\n";
 				ip += 1;
+				stack.clear();
 				return INTERPRET_OK;
 				break;
 				
@@ -62,12 +67,13 @@ public:
 				std::cout << "EXECUTING ADDITION" << "\n";
 				if (!check_stack_bin()) {
 					std::cout << "STACK CHECK FAIL" << "\n";
+					ip += 1;
 					return INTERPRET_COMPILE_ERROR;
 					break;
 				}
-				double val1 = -stack.back();
+				double val1 = stack.back();
 				stack.pop_back();
-				double val2 = -stack.back();
+				double val2 = stack.back();
 				stack.pop_back();
 				stack.push_back(val1 + val2);
 				ip += 1;
@@ -78,6 +84,7 @@ public:
 				std::cout << "EXECUTING SUBTRACTION" << "\n";
 				if (!check_stack_bin()) {
 					std::cout << "STACK CHECK FAIL" << "\n";
+					ip += 1;
 					return INTERPRET_COMPILE_ERROR;
 					break;
 				}
@@ -95,6 +102,7 @@ public:
 				std::cout << "EXECUTING MULTIPLICATION" << "\n";
 				if (!check_stack_bin()) {
 					std::cout << "STACK CHECK FAIL" << "\n";
+					ip += 1;
 					return INTERPRET_COMPILE_ERROR;
 					break;
 				}
@@ -112,6 +120,7 @@ public:
 				std::cout << "EXECUTING DIVISION" << "\n";
 				if (!check_stack_bin()) {
 					std::cout << "STACK CHECK FAIL" << "\n";
+					ip += 1;
 					return INTERPRET_COMPILE_ERROR;
 					break;
 				}

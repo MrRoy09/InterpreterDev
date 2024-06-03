@@ -35,5 +35,8 @@
     <ClInclude Include="vm.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="compiler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
