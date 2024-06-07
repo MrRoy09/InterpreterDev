@@ -1,13 +1,10 @@
 #include <iostream>
+#include <string>
 #include "common.h"
 #include "chunk.h"
 #include "debug.h"
 #include "vm.h"
-#include <string>
 #include "compiler.h"
-
-
-
 
 static void repl(VM *vm) {
     while (1) {

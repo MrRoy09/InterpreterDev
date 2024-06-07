@@ -14,7 +14,8 @@ static int disassembleInstruction(Chunk* chunk, int opcode, int offset) {
 		break;
 
 	case OP_CONSTANT:
-		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "LOAD_CONSTANT" <<" = " <<chunk->constants[chunk->opcodes[offset+1]] << "\n";
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "LOAD_CONSTANT" << " = "; 
+		chunk->constants[chunk->opcodes[offset + 1]].printValue();
 		return offset + 2;
 		break;
 	case OP_NEGATE:
@@ -35,6 +36,51 @@ static int disassembleInstruction(Chunk* chunk, int opcode, int offset) {
 		break;
 	case OP_DIV:
 		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_DIV" << "\n";
+		return offset + 1;
+		break;
+	case OP_NIL:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_NIL" << "\n";
+		return offset + 1;
+		break;
+	case OP_FALSE:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_FALSE" << "\n";
+		return offset + 1;
+		break;
+	case OP_TRUE:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_TRUE" << "\n";
+		return offset + 1;
+		break;
+	case OP_NOT:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_NOT" << "\n";
+		return offset + 1;
+		break;
+	case OP_EQUAL:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_EQUAL" << "\n";
+		return offset + 1;
+		break;
+	case OP_GREATER:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_GREATER" << "\n";
+		return offset + 1;
+		break;
+	case OP_LESS:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_LESS" << "\n";
+		return offset + 1;
+		break;
+	case OP_PRINT:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_PRINT" << "\n";
+		return offset + 1;
+		break;
+	case OP_POP:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_POP" << "\n";
+		return offset + 1;
+		break;
+	
+	case OP_DEFINE_GLOBAL:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_DEFINE_GLOBAL" << "\n";
+		return offset + 2;
+		break;
+	case OP_GET_GLOBAL:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_GET_GLOBAL" << "\n";
 		return offset + 1;
 		break;
 

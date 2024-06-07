@@ -1,25 +1,36 @@
 #pragma once
-#ifndef clox_chunk_h
-#define clox_chunk_h
+
 #include "common.h"
+#include "value.h"
 #include <vector>
 #include <cinttypes>
 
 typedef enum {
 	OP_RETURN,
 	OP_CONSTANT,
+	OP_NIL,
+	OP_TRUE,
+	OP_FALSE,
+	OP_NOT,
+	OP_EQUAL,
+	OP_GREATER,
+	OP_LESS,
 	OP_NEGATE,
 	OP_ADD,
 	OP_SUB,
 	OP_MUL,
 	OP_DIV,
+	OP_PRINT,
+	OP_POP,
+	OP_DEFINE_GLOBAL,
+	OP_GET_GLOBAL,
 } OpCode;
 
 
 class Chunk{
 public:
 	std::vector<int> opcodes;
-	std::vector<double> constants;
+	std::vector<Value> constants;
 	std::vector<int> lines;
 	int id;
 
@@ -32,11 +43,9 @@ public:
 		lines.push_back(line);
 	}
 
-	int AddConstant(double constant) {
+	int AddConstant(Value constant) {
 		constants.push_back(constant);
 		return constants.size()-1;
 	}
-
 };
-#endif
 

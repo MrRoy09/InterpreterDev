@@ -4,6 +4,10 @@
 #include "chunk.h"
 #include <map>
 #include <functional>
+#include "common.h"
+#include "value.h"
+#include "objects.h"
+
 
 typedef enum {
 	// Single-character tokens.
@@ -40,10 +44,6 @@ typedef enum {
 	PREC_CALL,        // . ()
 	PREC_PRIMARY
 } Precedence;
-
-
-
-
 
 class Token {
 public:
@@ -258,11 +258,15 @@ public:
 	}
 
 	void consume(TokenType type, const char* message) {
+
 		if (current.type == type) {
 			advance();
 			return;
 		}
-		errorAtCurrent(message);
+		else {
+			std::cout << "Current token type is " << current.type << " Expected type is " << type << "\n";
+			errorAtCurrent(message);
+		}
 	}
 
 	void errorAt(Token* token, const char* message) {
@@ -291,32 +295,31 @@ public:
 	} ParseRule;
 
 	const char* source;
-	Chunk * compiling_chunk;
+	Chunk* compiling_chunk;
 	Scanner scanner;
 	Parser parser;
-	bool had_error=0;
+	bool had_error = 0;
 	std::map<TokenType, ParseRule> parser_rules_map;
 
-	
-	Compiler(const char *source, Chunk *chunk):parser(source,&scanner){
+
+	Compiler(const char* source, Chunk* chunk) :parser(source, &scanner) {
 		this->source = source;
 		this->compiling_chunk = chunk;
 		this->scanner.start = source;
 		this->scanner.current = source;
 		this->scanner.line = 0;
-		parser.advance();
-		parser_rules_map[TOKEN_LEFT_PAREN] = { std::bind(&Compiler::grouping, this), NULL, PREC_NONE};
+		parser_rules_map[TOKEN_LEFT_PAREN] = { std::bind(&Compiler::grouping, this), NULL, PREC_NONE };
 		parser_rules_map[TOKEN_RIGHT_PAREN] = { NULL,NULL,PREC_NONE };
 		parser_rules_map[TOKEN_LEFT_BRACE] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_RIGHT_BRACE] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_COMMA] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_DOT] = { NULL,     NULL,   PREC_NONE };
-		parser_rules_map[TOKEN_MINUS] = {std::bind(&Compiler::unary,this), std::bind(&Compiler::binary,this), PREC_TERM};
-		parser_rules_map[TOKEN_PLUS] = { NULL, std::bind(&Compiler::binary,this), PREC_TERM};
+		parser_rules_map[TOKEN_MINUS] = { std::bind(&Compiler::unary,this), std::bind(&Compiler::binary,this), PREC_TERM };
+		parser_rules_map[TOKEN_PLUS] = { NULL, std::bind(&Compiler::binary,this), PREC_TERM };
 		parser_rules_map[TOKEN_SEMICOLON] = { NULL,     NULL,   PREC_NONE };
-		parser_rules_map[TOKEN_SLASH] = { NULL, std::bind(&Compiler::binary,this), PREC_FACTOR};
-		parser_rules_map[TOKEN_STAR] = { NULL, std::bind(&Compiler::binary,this), PREC_FACTOR};
-		parser_rules_map[TOKEN_BANG] = { NULL,     NULL,   PREC_NONE };
+		parser_rules_map[TOKEN_SLASH] = { NULL, std::bind(&Compiler::binary,this), PREC_FACTOR };
+		parser_rules_map[TOKEN_STAR] = { NULL, std::bind(&Compiler::binary,this), PREC_FACTOR };
+		parser_rules_map[TOKEN_BANG] = { std::bind(&Compiler::unary,this),     NULL,   PREC_NONE};
 		parser_rules_map[TOKEN_BANG_EQUAL] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_EQUAL] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_EQUAL_EQUAL] = { NULL,     NULL,   PREC_NONE };
@@ -324,9 +327,9 @@ public:
 		parser_rules_map[TOKEN_GREATER_EQUAL] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_LESS] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_LESS_EQUAL] = { NULL,     NULL,   PREC_NONE };
-		parser_rules_map[TOKEN_IDENTIFIER] = { NULL,     NULL,   PREC_NONE };
+		parser_rules_map[TOKEN_IDENTIFIER] = { std::bind(&Compiler::variable,this),     NULL,   PREC_NONE};
 		parser_rules_map[TOKEN_STRING] = { NULL,     NULL,   PREC_NONE };
-		parser_rules_map[TOKEN_NUMBER] = {std::bind(&Compiler::number,this),   NULL,   PREC_NONE};
+		parser_rules_map[TOKEN_NUMBER] = { std::bind(&Compiler::number,this),   NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_AND] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_CLASS] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_ELSE] = { NULL,     NULL,   PREC_NONE };
@@ -345,13 +348,99 @@ public:
 		parser_rules_map[TOKEN_WHILE] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_ERROR] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_EOF] = { NULL,     NULL,   PREC_NONE };
+		parser_rules_map[TOKEN_TRUE] = { std::bind(&Compiler::literal,this),  NULL,   PREC_NONE };
+		parser_rules_map[TOKEN_FALSE] = { std::bind(&Compiler::literal,this),  NULL,   PREC_NONE };
+		parser_rules_map[TOKEN_NIL] = { std::bind(&Compiler::literal,this),  NULL,   PREC_NONE };
+		parser_rules_map[TOKEN_BANG_EQUAL] = { NULL, std::bind(&Compiler::binary,this), PREC_EQUALITY };
+		parser_rules_map[TOKEN_EQUAL_EQUAL] = { NULL,      std::bind(&Compiler::binary,this), PREC_EQUALITY };
+		parser_rules_map[TOKEN_GREATER] = { NULL,     std::bind(&Compiler::binary,this), PREC_COMPARISON };
+		parser_rules_map[TOKEN_GREATER_EQUAL] = { NULL,      std::bind(&Compiler::binary,this), PREC_COMPARISON };
+		parser_rules_map[TOKEN_LESS] = { NULL, std::bind(&Compiler::binary,this), PREC_COMPARISON };
+		parser_rules_map[TOKEN_LESS_EQUAL] = { NULL, std::bind(&Compiler::binary,this), PREC_COMPARISON };
+		parser_rules_map[TOKEN_STRING] = { std::bind(&Compiler::string, this), NULL, PREC_NONE };
+		//parser_rules_map[TOKEN_VAR] = { std::bind(&Compiler::variable,this),NULL,PREC_NONE };
 	}
 
+
 	bool compile() {
-		expression();
-		parser.consume(TOKEN_EOF, "Expected end of file");
+		parser.advance();
+		while (!match(TOKEN_EOF)) {
+			declaration();
+		}
 		emitByte(OP_RETURN);
 		return !(this->parser.had_error);
+	}
+
+	void declaration() {
+		if (match(TOKEN_VAR)) {
+			varDeclaration();
+		}
+		else {
+			statement();
+		}
+	}
+
+	void varDeclaration() {
+		uint8_t global = parseVariable("Expect variable name.");
+
+		if (match(TOKEN_EQUAL)) {
+			expression();
+		}
+		else {
+			emitByte(OP_NIL);
+		}
+		parser.consume(TOKEN_SEMICOLON,"Expect ';' after variable declaration.");
+
+		defineVariable(global);
+	}
+
+	uint8_t parseVariable(const char* errorMessage) {
+		parser.consume(TOKEN_IDENTIFIER, errorMessage);
+		return identifierConstant(&parser.previous);
+	}
+
+	uint8_t identifierConstant(Token* name) {
+		std::string identifierName = (parser.previous.start);
+		identifierName = identifierName.substr(0, parser.previous.length);
+		Value value = Value(identifierName);
+		return makeConstant(value);
+	}
+
+	void defineVariable(uint8_t global) {
+		emitBytes(OP_DEFINE_GLOBAL, global);
+	}
+
+	void statement() {
+		if (match(TOKEN_PRINT)) {
+			printStatement();
+		}
+		else {
+			expressionStatement();
+		}
+	}
+
+	bool match(TokenType type) {
+		if (!check(type)) return false;
+		parser.advance();
+		return true;
+	}
+
+	bool check(TokenType type) {
+		return parser.current.type == type;
+	}
+
+	void printStatement() {
+		expression();
+		parser.consume(TOKEN_SEMICOLON, "Expect ';' after value.");
+		emitByte(OP_PRINT);
+		return;
+	}
+
+	void expressionStatement() {
+		expression();
+		parser.consume(TOKEN_SEMICOLON, "EXPECT ';' after expression.");
+		emitByte(OP_POP);
+		return;
 	}
 
 	void emitByte(int byte) {
@@ -384,15 +473,31 @@ public:
 	}
 
 	void number() {
-		double value = strtod(parser.previous.start, NULL);
+		Value value =Value("double",strtod(parser.previous.start, NULL));
 		emitConstant(value);
 	}
 
-	void emitConstant(double value) {
+	void string() {
+		std::string string = (parser.previous.start + 1);
+		string = string.substr(0, parser.previous.length - 2);
+		Value value = Value(string);
+		emitConstant(value);
+	}
+
+	void variable() {
+		namedVariable(parser.previous);
+	}
+
+	void namedVariable(Token name) {
+		uint8_t arg = identifierConstant(&name);
+		emitBytes(OP_GET_GLOBAL, arg);
+	}
+
+	void emitConstant(Value value) {
 		emitBytes(OP_CONSTANT, makeConstant(value));
 	}
 
-	int makeConstant(double value) {
+	int makeConstant(Value value) {
 		int constant_offset = this->compiling_chunk->AddConstant(value);
 		return constant_offset;
 	}
@@ -405,8 +510,8 @@ public:
 	void unary() {
 		TokenType operatorType = parser.previous.type;
 		parsePrecedence(PREC_UNARY);
-		expression();
 		switch (operatorType) {
+		case TOKEN_BANG: emitByte(OP_NOT); break;
 		case TOKEN_MINUS: emitByte(OP_NEGATE); break;
 		default: return; 
 		}
@@ -420,13 +525,22 @@ public:
 		case TOKEN_MINUS:         emitByte(OP_SUB); break;
 		case TOKEN_STAR:          emitByte(OP_MUL); break;
 		case TOKEN_SLASH:         emitByte(OP_DIV); break;
+		case TOKEN_BANG_EQUAL:    emitBytes(OP_EQUAL, OP_NOT); break;
+		case TOKEN_EQUAL_EQUAL:   emitByte(OP_EQUAL); break;
+		case TOKEN_GREATER:       emitByte(OP_GREATER); break;
+		case TOKEN_GREATER_EQUAL: emitBytes(OP_LESS, OP_NOT); break;
+		case TOKEN_LESS:          emitByte(OP_LESS); break;
+		case TOKEN_LESS_EQUAL:    emitBytes(OP_GREATER, OP_NOT); break;
 		default: return;
 		}
 	}
-
-	
-
-	
-
+	void literal() {
+		switch (parser.previous.type) {
+		case TOKEN_FALSE: emitByte(OP_FALSE); break;
+		case TOKEN_NIL: emitByte(OP_NIL); break;
+		case TOKEN_TRUE: emitByte(OP_TRUE); break;
+		default: return; 
+		}
+	}
 };
 
