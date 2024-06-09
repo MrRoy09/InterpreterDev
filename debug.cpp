@@ -81,8 +81,17 @@ static int disassembleInstruction(Chunk* chunk, int opcode, int offset) {
 		break;
 	case OP_GET_GLOBAL:
 		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_GET_GLOBAL" << "\n";
-		return offset + 1;
+		return offset + 2;
 		break;
+	case OP_SET_LOCAL:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_SET_LOCAL" << "\n";
+		return offset + 2;
+		break;
+	case OP_GET_LOCAL:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_GET_LOCAL" << "\n";
+		return offset + 2;
+		break;
+
 
 	default:
 		std::cout<< " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "UNKNOWN"<< "\n";

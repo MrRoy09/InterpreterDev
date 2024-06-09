@@ -45,6 +45,13 @@ typedef enum {
 	PREC_PRIMARY
 } Precedence;
 
+typedef struct {
+	std::function<void()> prefix;
+	std::function<void()> infix;
+	Precedence precedence;
+} ParseRule;
+
+
 class Token {
 public:
 	TokenType type;
@@ -57,7 +64,26 @@ public:
 		this->length = length;
 		this->line = line;
 	}
+	Token() {
+		this->type = TOKEN_NONE;
+		this->start = " ";
+		this->length = 0;
+		this->line = 0;
+	}
 };
+
+class Local {
+public:
+	Token name;
+	int depth;
+
+	Local(Token name,int depth) {
+		this->name = name;
+		this->depth = depth;
+	}
+};
+
+
 
 class Scanner {
 public:
@@ -288,18 +314,15 @@ public:
 class Compiler {
 public:
 
-	typedef struct {
-		std::function<void()> prefix;
-		std::function<void()> infix;
-		Precedence precedence;
-	} ParseRule;
-
 	const char* source;
 	Chunk* compiling_chunk;
 	Scanner scanner;
 	Parser parser;
 	bool had_error = 0;
 	std::map<TokenType, ParseRule> parser_rules_map;
+	std::vector<std::unique_ptr<Local>>locals;
+	int localCount;
+	int scopeDepth;
 
 
 	Compiler(const char* source, Chunk* chunk) :parser(source, &scanner) {
@@ -308,6 +331,8 @@ public:
 		this->scanner.start = source;
 		this->scanner.current = source;
 		this->scanner.line = 0;
+		this->localCount = 0;
+		this->scopeDepth = 0;
 		parser_rules_map[TOKEN_LEFT_PAREN] = { std::bind(&Compiler::grouping, this), NULL, PREC_NONE };
 		parser_rules_map[TOKEN_RIGHT_PAREN] = { NULL,NULL,PREC_NONE };
 		parser_rules_map[TOKEN_LEFT_BRACE] = { NULL,     NULL,   PREC_NONE };
@@ -358,7 +383,6 @@ public:
 		parser_rules_map[TOKEN_LESS] = { NULL, std::bind(&Compiler::binary,this), PREC_COMPARISON };
 		parser_rules_map[TOKEN_LESS_EQUAL] = { NULL, std::bind(&Compiler::binary,this), PREC_COMPARISON };
 		parser_rules_map[TOKEN_STRING] = { std::bind(&Compiler::string, this), NULL, PREC_NONE };
-		//parser_rules_map[TOKEN_VAR] = { std::bind(&Compiler::variable,this),NULL,PREC_NONE };
 	}
 
 
@@ -396,6 +420,8 @@ public:
 
 	uint8_t parseVariable(const char* errorMessage) {
 		parser.consume(TOKEN_IDENTIFIER, errorMessage);
+		declareVariable();
+		if (scopeDepth > 0) return 0;
 		return identifierConstant(&parser.previous);
 	}
 
@@ -407,12 +433,50 @@ public:
 	}
 
 	void defineVariable(uint8_t global) {
+		if (scopeDepth > 0) {
+			markInitialized();
+			return;
+		}
 		emitBytes(OP_DEFINE_GLOBAL, global);
+	}
+
+	void declareVariable() {
+		if (scopeDepth == 0) return;
+
+		Token* name = &parser.previous;
+		if (locals.size() > localCount) {
+			for (int i = localCount; i >= 0; i--) {
+				Local* local = locals[i].get();
+				if (local->depth != -1 && local->depth < this->scopeDepth) {
+					break;
+				}
+				if (identifiersEqual(name, &local->name)) {
+					std::cout << "Same variable name exists in this scope. " << "\n";
+					break;
+				}
+			}
+		}
+		
+		addLocal(*name);
+	}
+
+	void addLocal(Token name) {
+		locals.push_back(std::make_unique<Local>(name, -1));
+		localCount++;
+	}
+
+	void markInitialized() {
+		locals[localCount - 1]->depth =scopeDepth;
 	}
 
 	void statement() {
 		if (match(TOKEN_PRINT)) {
 			printStatement();
+		}
+		else if (match(TOKEN_LEFT_BRACE)) {
+			beginScope();
+			block();
+			endScope();
 		}
 		else {
 			expressionStatement();
@@ -489,8 +553,39 @@ public:
 	}
 
 	void namedVariable(Token name) {
-		uint8_t arg = identifierConstant(&name);
-		emitBytes(OP_GET_GLOBAL, arg);
+		uint8_t getOp, setOp;
+		int arg = resolveLocal(&name);
+		if (arg != -1) {
+			getOp = OP_GET_LOCAL;
+			setOp = OP_SET_LOCAL;
+		}
+		else {
+			arg = identifierConstant(&name);
+			getOp = OP_GET_GLOBAL;
+			setOp = OP_DEFINE_GLOBAL;
+		}
+
+		if (match(TOKEN_EQUAL)) {
+			expression();
+			emitBytes(setOp, (int)arg);
+		}
+		else {
+			emitBytes(getOp, (int)arg);
+		}
+	}
+
+	int resolveLocal(Token* name) {
+		for (int i = this->localCount - 1; i >= 0; i--) {
+			Local* local = this->locals[i].get();
+			if (identifiersEqual(name, &local->name)) {
+				if (local->depth == -1) {
+					continue;
+				}
+				return i;
+			}
+		}
+		std::cout << "Identifier not found" << "\n";
+		return -1;
 	}
 
 	void emitConstant(Value value) {
@@ -541,6 +636,31 @@ public:
 		case TOKEN_TRUE: emitByte(OP_TRUE); break;
 		default: return; 
 		}
+	}
+
+	void block() {
+		while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
+			declaration();
+		}
+
+		parser.consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
+	}
+
+	void beginScope() {
+		this->scopeDepth++;
+	}
+
+	void endScope() {
+		this->scopeDepth--;
+		while (localCount > 0 && locals[localCount - 1]->depth >scopeDepth) {
+			emitByte(OP_POP);
+			localCount--;
+		}
+	}
+
+	bool identifiersEqual(Token* a, Token* b) {
+		if (a->length != b->length) return false;
+		return memcmp(a->start, b->start, a->length) == 0;
 	}
 };
 

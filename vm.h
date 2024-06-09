@@ -36,13 +36,16 @@ public:
 				return result;
 			}
 		}
-		
 		return INTERPRET_OK;
 	}
 
+	void runtimeError() {
+		std::cout << std::endl;
+	}
 	template<typename T, typename... Args>
 	void runtimeError(T first, Args... args) {
-		std::cerr << first << " "; 
+		std::cout << first << " "; 
+		runtimeError(args...);
 	}
 
 	InterpretResult run() {
@@ -293,7 +296,7 @@ public:
 				StringObject name = chunk->constants[chunk->opcodes[this->ip + 1]].returnStringObject();
 				Value value;
 				if (vm_globals.count(name.getString())==0) {
-					runtimeError("Undefined variable '%s'.", name.getString());
+					runtimeError("Undefined variable" , name.getString());
 					ip += 2;
 					return INTERPRET_RUNTIME_ERROR;
 					break;
@@ -303,8 +306,21 @@ public:
 				ip+=2;
 				return INTERPRET_OK;
 				break;
-				
-				
+			}
+			case OP_GET_LOCAL: {
+				int slot = chunk->opcodes[++ip];
+				stack.push_back(stack[slot]);
+				ip += 1;
+				return INTERPRET_OK;
+				break;
+			}
+
+			case OP_SET_LOCAL: {
+				uint8_t slot = chunk->opcodes[++ip];
+				this->stack[slot] = stack.back();
+				ip += 1;
+				return INTERPRET_OK;
+				break;
 			}
 
 			default:
