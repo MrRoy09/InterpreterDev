@@ -29,7 +29,7 @@ public:
 		bool compilation_result = compiler.compile();
 		this->chunk = &chunk;
 		this->ip = 0;
-		//disassembleChunk(&chunk);
+		disassembleChunk(&chunk);
 		while (ip < this->chunk->opcodes.size()) {
 			InterpretResult result = run();
 			if (result != INTERPRET_OK) {
@@ -307,6 +307,16 @@ public:
 				return INTERPRET_OK;
 				break;
 			}
+
+			case OP_SET_GLOBAL: {
+				StringObject name = chunk->constants[chunk->opcodes[this->ip + 1]].returnStringObject();
+				//std::cout << name.getString() << "\n";
+				vm_globals[name.getString()] = stack.back();
+				ip += 2;
+				return INTERPRET_OK;
+				break;
+			}
+
 			case OP_GET_LOCAL: {
 				int slot = chunk->opcodes[++ip];
 				stack.push_back(stack[slot]);
@@ -323,6 +333,27 @@ public:
 				break;
 			}
 
+			case OP_JUMP_IF_FALSE: {
+				ip += 3;
+				uint16_t offset = (uint16_t)((chunk->opcodes[ip-2] << 8) | chunk->opcodes[ip-1]);
+				if (stack.back().returnBool() == false) ip += offset;
+				return INTERPRET_OK;
+				break;
+			}
+			case OP_JUMP: {
+				ip += 3;
+				uint16_t offset = (uint16_t)((chunk->opcodes[ip - 2] << 8) | chunk->opcodes[ip - 1]);
+				ip += offset;
+				return INTERPRET_OK;
+				break;
+			}
+			case OP_LOOP: {
+				ip += 3;
+				uint16_t offset = (uint16_t)((chunk->opcodes[ip - 2] << 8) | chunk->opcodes[ip - 1]);
+				ip -= offset;
+				return INTERPRET_OK;
+				break;
+			}
 			default:
 				//std::cout << "COMPILE ERROR : UNKNOWN INSTRUCTION ENCOUNTERED" << "\n";
 				runtimeError("Unknown Instruction Encountered");
@@ -333,10 +364,14 @@ public:
 	}
 
 	void stack_trace() {
-		
+		if (stack.size() == 0) {
+			std::cout << "Stack Empty" << "\n";
+			return;
+		}
 		for (auto it = stack.begin(); it < stack.end(); ++it) {
 			(it->printValue());
 		}
+		std::cout << "\n";
 		
 	}
 

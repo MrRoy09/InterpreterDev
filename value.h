@@ -51,6 +51,9 @@ public:
 		if (std::holds_alternative<bool>(value)) {
 			return std::get<bool>(value);
 		}
+		else if (std::holds_alternative<double>(value)) {
+			return std::get<double>(value);
+		}
 		else {
 			throw std::bad_variant_access();
 		}

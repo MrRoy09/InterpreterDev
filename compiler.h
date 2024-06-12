@@ -355,7 +355,7 @@ public:
 		parser_rules_map[TOKEN_IDENTIFIER] = { std::bind(&Compiler::variable,this),     NULL,   PREC_NONE};
 		parser_rules_map[TOKEN_STRING] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_NUMBER] = { std::bind(&Compiler::number,this),   NULL,   PREC_NONE };
-		parser_rules_map[TOKEN_AND] = { NULL,     NULL,   PREC_NONE };
+		parser_rules_map[TOKEN_AND] = { NULL,std::bind(&Compiler::and_,this),PREC_AND};
 		parser_rules_map[TOKEN_CLASS] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_ELSE] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_FALSE] = { NULL,     NULL,   PREC_NONE };
@@ -363,7 +363,7 @@ public:
 		parser_rules_map[TOKEN_FUN] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_IF] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_NIL] = { NULL,     NULL,   PREC_NONE };
-		parser_rules_map[TOKEN_OR] = { NULL,     NULL,   PREC_NONE };
+		parser_rules_map[TOKEN_OR] = { NULL,     std::bind(&Compiler::or_,this),    PREC_OR };
 		parser_rules_map[TOKEN_PRINT] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_RETURN] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_SUPER] = { NULL,     NULL,   PREC_NONE };
@@ -473,6 +473,17 @@ public:
 		if (match(TOKEN_PRINT)) {
 			printStatement();
 		}
+		else if (match(TOKEN_IF)) {
+			ifStatement();
+		}
+
+		else if (match(TOKEN_WHILE)) {
+			whileStatement();
+		}
+
+		else if (match(TOKEN_FOR)) {
+			forStatement();
+		}
 		else if (match(TOKEN_LEFT_BRACE)) {
 			beginScope();
 			block();
@@ -562,7 +573,7 @@ public:
 		else {
 			arg = identifierConstant(&name);
 			getOp = OP_GET_GLOBAL;
-			setOp = OP_DEFINE_GLOBAL;
+			setOp = OP_SET_GLOBAL;
 		}
 
 		if (match(TOKEN_EQUAL)) {
@@ -584,8 +595,120 @@ public:
 				return i;
 			}
 		}
-		std::cout << "Identifier not found" << "\n";
 		return -1;
+	}
+
+	void ifStatement() {
+		parser.consume(TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
+		expression();
+		parser.consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
+
+		int thenJump = emitJump(OP_JUMP_IF_FALSE);
+		emitByte(OP_POP);
+		statement();
+		int elseJump = emitJump(OP_JUMP);
+		patchJump(thenJump);
+		emitByte(OP_POP);
+		if (match(TOKEN_ELSE)) statement();
+		patchJump(elseJump);
+		
+	}
+
+	void whileStatement() {
+		int loopStart = compiling_chunk->opcodes.size();
+		parser.consume(TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
+		expression();
+		parser.consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
+		int exitJump = emitJump(OP_JUMP_IF_FALSE);
+		emitByte(OP_POP);
+		statement();
+		emitLoop(loopStart);
+		patchJump(exitJump);
+		emitByte(OP_POP);
+	}
+
+	void forStatement() {
+		beginScope();
+		parser.consume(TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
+		if (match(TOKEN_SEMICOLON)) {
+			// No initializer.
+		}
+		else if (match(TOKEN_VAR)) {
+			varDeclaration();
+		}
+		else {
+			expressionStatement();
+		}
+		int loopStart = compiling_chunk->opcodes.size();
+		int exitJump = -1;
+
+		if (!match(TOKEN_SEMICOLON)) {
+			expression();
+			parser.consume(TOKEN_SEMICOLON, "Expect ';' after loop condition.");
+			exitJump = emitJump(OP_JUMP_IF_FALSE);
+			emitByte(OP_POP);
+		}
+
+		if (!match(TOKEN_RIGHT_PAREN)) {
+			int bodyJump = emitJump(OP_JUMP);
+			int incrementStart = compiling_chunk->opcodes.size();
+			expression();
+			emitByte(OP_POP);
+			parser.consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
+
+			emitLoop(loopStart);
+			loopStart = incrementStart;
+			patchJump(bodyJump);
+		}
+
+		statement();
+		emitLoop(loopStart);
+		if (exitJump != -1) {
+			patchJump(exitJump);
+			emitByte(OP_POP); // Condition.
+		}
+		endScope();
+	}
+
+	void emitLoop(int start) {
+		emitByte(OP_LOOP);
+		int offset = compiling_chunk->opcodes.size() - start + 2;
+		emitByte((offset >> 8) & 0xff);
+		emitByte(offset & 0xff);
+	}
+
+	int emitJump(uint8_t instruction) {
+		emitByte(instruction);
+		emitByte(0xff);
+		emitByte(0xff);
+		return compiling_chunk->opcodes.size() - 2;
+	}
+
+	void patchJump(int offset) {
+		int jump = compiling_chunk->opcodes.size() - offset-2;
+
+		compiling_chunk->opcodes[offset] = (jump >> 8) & 0xff;
+		compiling_chunk->opcodes[offset + 1] = jump & 0xff;
+
+	}
+	void and_() {
+		int endJump = emitJump(OP_JUMP_IF_FALSE);
+
+		emitByte(OP_POP);
+		parsePrecedence(PREC_AND);
+
+		patchJump(endJump);
+	}
+
+	void or_() {
+		int elseJump = emitJump(OP_JUMP_IF_FALSE);
+		int endJump = emitJump(OP_JUMP);
+
+		patchJump(elseJump);
+		emitByte(OP_POP);
+
+		parsePrecedence(PREC_OR);
+		patchJump(endJump);
 	}
 
 	void emitConstant(Value value) {

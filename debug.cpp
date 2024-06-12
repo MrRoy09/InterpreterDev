@@ -83,6 +83,10 @@ static int disassembleInstruction(Chunk* chunk, int opcode, int offset) {
 		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_GET_GLOBAL" << "\n";
 		return offset + 2;
 		break;
+	case OP_SET_GLOBAL:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_SET_GLOBAL" << "\n";
+		return offset + 2;
+		break;
 	case OP_SET_LOCAL:
 		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_SET_LOCAL" << "\n";
 		return offset + 2;
@@ -92,6 +96,18 @@ static int disassembleInstruction(Chunk* chunk, int opcode, int offset) {
 		return offset + 2;
 		break;
 
+	case OP_JUMP:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_JUMP " << "TO OFFSET "<<(uint16_t)((chunk->opcodes[offset +1] << 8) | chunk->opcodes[offset + 2])+offset+3<<"\n";
+		return offset + 3;
+		break;
+	case OP_JUMP_IF_FALSE:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_JUMP_IF_FALSE " << "TO OFFSET "<< (uint16_t)((chunk->opcodes[offset +1] << 8) | chunk->opcodes[offset + 2]) +offset+3<< "\n";
+		return offset + 3;
+		break;
+	case OP_LOOP:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_LOOP " << "TO OFFSET " << -(uint16_t)((chunk->opcodes[offset + 1] << 8) | chunk->opcodes[offset + 2]) + offset + 3 << "\n";
+		return offset + 3;
+		break;
 
 	default:
 		std::cout<< " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "UNKNOWN"<< "\n";
@@ -109,5 +125,7 @@ void disassembleChunk(Chunk* chunk)
 	}
 
 }
+
+
 
 
