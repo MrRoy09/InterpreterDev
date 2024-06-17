@@ -2,11 +2,12 @@
 #include <string>
 #include <vector>
 #include "chunk.h"
-#include <map>
 #include <functional>
 #include "common.h"
 #include "value.h"
 #include "objects.h"
+#include <unordered_map>
+#include <map>
 
 
 typedef enum {
@@ -316,23 +317,29 @@ public:
 
 	const char* source;
 	Chunk* compiling_chunk;
+	std::shared_ptr<Chunk> compiling_chunk_shared;
 	Scanner scanner;
 	Parser parser;
 	bool had_error = 0;
 	std::map<TokenType, ParseRule> parser_rules_map;
 	std::vector<std::unique_ptr<Local>>locals;
+	std::unordered_map<std::string, Chunk*>* functions;
 	int localCount;
 	int scopeDepth;
 
 
-	Compiler(const char* source, Chunk* chunk) :parser(source, &scanner) {
+	Compiler(const char* source, Chunk* chunk, std::unordered_map<std::string, Chunk*>*vm_functions) :parser(source, &scanner) {
 		this->source = source;
 		this->compiling_chunk = chunk;
+		std::unique_ptr<FunctionObject> mainFuncPointer = std::make_unique<FunctionObject>("main", 0);
+		this->compiling_chunk->function = *mainFuncPointer.get();
+		vm_functions->insert({this->compiling_chunk->function.funcName,chunk});
 		this->scanner.start = source;
 		this->scanner.current = source;
 		this->scanner.line = 0;
 		this->localCount = 0;
 		this->scopeDepth = 0;
+		this->functions = vm_functions;
 		parser_rules_map[TOKEN_LEFT_PAREN] = { std::bind(&Compiler::grouping, this), NULL, PREC_NONE };
 		parser_rules_map[TOKEN_RIGHT_PAREN] = { NULL,NULL,PREC_NONE };
 		parser_rules_map[TOKEN_LEFT_BRACE] = { NULL,     NULL,   PREC_NONE };
@@ -473,6 +480,10 @@ public:
 		if (match(TOKEN_PRINT)) {
 			printStatement();
 		}
+		else if (match(TOKEN_FUN)) {
+			funDeclaration();
+		}
+
 		else if (match(TOKEN_IF)) {
 			ifStatement();
 		}
@@ -489,6 +500,10 @@ public:
 			block();
 			endScope();
 		}
+		else if (match(TOKEN_RIGHT_BRACE) && this->compiling_chunk->function.funcName != "main") {
+			emitByte(OP_RETURN);
+			this ->compiling_chunk = functions->at("main");
+		}
 		else {
 			expressionStatement();
 		}
@@ -502,6 +517,23 @@ public:
 
 	bool check(TokenType type) {
 		return parser.current.type == type;
+	}
+
+	void funDeclaration() {
+		uint8_t global = parseVariable("Expect function name.");
+		std::string func_name =std::string(parser.previous.start).substr(0,parser.previous.length);
+		parser.consume(TOKEN_LEFT_PAREN, "Expect '(' after function name.");
+		parser.consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
+		parser.consume(TOKEN_LEFT_BRACE, "Expect '{' after function declaration");
+		createFunction(func_name);
+	}
+
+	void createFunction(std::string name) {
+		FunctionObject function = FunctionObject(name);
+		this->compiling_chunk_shared = std::make_shared<Chunk>(10);// 10 doesnt matter
+		this->compiling_chunk = this->compiling_chunk_shared.get();
+		this->compiling_chunk->function = function;
+		this->functions->insert({ function.funcName,this->compiling_chunk });
 	}
 
 	void printStatement() {
@@ -611,7 +643,6 @@ public:
 		emitByte(OP_POP);
 		if (match(TOKEN_ELSE)) statement();
 		patchJump(elseJump);
-		
 	}
 
 	void whileStatement() {

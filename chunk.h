@@ -4,6 +4,7 @@
 #include "value.h"
 #include <vector>
 #include <cinttypes>
+#include "objects.h"
 
 typedef enum {
 	OP_RETURN,
@@ -38,6 +39,7 @@ public:
 	std::vector<int> opcodes;
 	std::vector<Value> constants;
 	std::vector<int> lines;
+	FunctionObject function;
 	int id;
 
 	Chunk(int id) {

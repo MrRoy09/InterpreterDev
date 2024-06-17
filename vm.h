@@ -21,15 +21,17 @@ public:
 	std::vector<Value> stack;
 	int ip;
 	std::unordered_map<std::string, Value> vm_globals;
+	std::unordered_map<std::string, Chunk*> vm_functions;
 
 	InterpretResult interpret(std::string source) {
 		Chunk chunk=Chunk(1);
+		vm_functions["main"]=&chunk;
 		const char* source_c_str = source.c_str();
-		Compiler compiler = Compiler(source_c_str,&chunk);
+		Compiler compiler = Compiler(source_c_str,&chunk, &vm_functions);
 		bool compilation_result = compiler.compile();
-		this->chunk = &chunk;
+		this->chunk = vm_functions["main"];
 		this->ip = 0;
-		disassembleChunk(&chunk);
+		//disassembleChunk(vm_functions["myFunction"]);
 		while (ip < this->chunk->opcodes.size()) {
 			InterpretResult result = run();
 			if (result != INTERPRET_OK) {
