@@ -5,6 +5,9 @@
 #include "debug.h"
 #include "vm.h"
 #include "compiler.h"
+#include <fstream> 
+#include <sstream>
+
 
 static void repl(VM *vm) {
     while (1) {
@@ -24,6 +27,11 @@ static void repl(VM *vm) {
 int main(int argc , const char*argv[])
 {
     VM vm;
+    std::ifstream code("code.txt");
+    std::stringstream buffer;
+    buffer << code.rdbuf();
+    std::string code_string = buffer.str();
+    //vm.interpret(code_string);
     repl(&vm);
     return 0;
 }

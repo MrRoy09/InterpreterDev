@@ -35,11 +35,11 @@ public:
 	std::unordered_map<std::string, Value> vm_globals;
 	std::unordered_map<std::string, std::shared_ptr<Chunk>> vm_functions;
 	std::vector<std::shared_ptr<StackFrame>> vm_stackFrames;
+	
 
 	InterpretResult interpret(std::string source) {
-		
-		Chunk chunk=Chunk(1);
-		vm_functions["main"]=std::make_shared<Chunk>(0);
+		Chunk chunk = Chunk(1);
+		vm_functions["main"]= std::make_shared<Chunk>(0);
 		const char* source_c_str = source.c_str();
 		Compiler compiler = Compiler(source_c_str, &vm_functions);
 		bool compilation_result = compiler.compile();
@@ -67,7 +67,7 @@ public:
 	}
 
 	void destroyStackFrame(std::string name) {
-		int stack_offset = (vm_stackFrames.end() - 1)->get()->stack_start_offset-vm_stackFrames.size()+1;
+		int stack_offset = (vm_stackFrames.end() - 1)->get()->stack_start_offset-vm_stackFrames.size()+2;
 		int ip_offset = (vm_stackFrames.end() - 1)->get()->ip_offset;
 		vm_stackFrames.pop_back();
 		if (stack_offset != 0) {
@@ -85,12 +85,25 @@ public:
 				ip += 1;
 				if (chunk->function.funcName != "main") {
 					destroyStackFrame(chunk->function.funcName);
-					this->chunk = vm_functions[(vm_stackFrames.end()-1)->get()->function_name].get();
+					stack.push_back(Value());
+					this->chunk = vm_functions[(vm_stackFrames.end() - 1)->get()->function_name].get();
 					this->chunk->function.funcName = (vm_stackFrames.end() - 1)->get()->function_name;
 				}
 				//stack.clear();
 				return INTERPRET_OK;
 				break;
+
+			case OP_RETURN_VALUE: {
+				ip += 1;
+				Value returnValue = stack.back();
+				destroyStackFrame(chunk->function.funcName);
+				this->chunk = vm_functions[(vm_stackFrames.end() - 1)->get()->function_name].get();
+				this->chunk->function.funcName = (vm_stackFrames.end() - 1)->get()->function_name;
+				stack.push_back(returnValue);
+				return INTERPRET_OK;
+				break;
+			}
+
 				
 			case OP_CONSTANT:
 				

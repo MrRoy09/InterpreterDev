@@ -8,6 +8,7 @@
 
 typedef enum {
 	OP_RETURN,
+	OP_RETURN_VALUE,
 	OP_CONSTANT,
 	OP_NIL,
 	OP_TRUE,

@@ -118,19 +118,25 @@ public:
 		return true;
 	}
 
+	void consumeWhitespace() {
+		if (*current == ' ' || *current == '\r' || *current == '\t') {
+			while (*current == ' ' || *current == '\r' || *current == '\t')
+				advance();
+		}
+		start = current;
+	}
+
 	Token scanToken() {
 		start = current;
 		// Handle for whitespaces 
 		if (isAtEnd()) return makeToken(TOKEN_EOF);
-		if (*current == ' ' || *current == '\r' || *current == '\t') {
-			advance();
-			start = current;
-		}
+		consumeWhitespace();
 		if (*current == '\n') {
 			line++;
 			advance();
+			consumeWhitespace();
 		}
-
+		
 		// Handle for comments
 		if (*current == '/' && *current + 1 == '/') {
 			while (*current != '\n' && !isAtEnd()) advance();
@@ -291,7 +297,7 @@ public:
 			return;
 		}
 		else {
-			std::cout << "Current token type is " << current.type << " Expected type is " << type << "\n";
+			//std::cout << "Current token type is " << current.type << " Expected type is " << type << "\n";
 			errorAtCurrent(message);
 		}
 	}
@@ -497,9 +503,18 @@ public:
 			block();
 			endScope();
 		}
-		else if (match(TOKEN_RIGHT_BRACE) && this->compiling_chunk->function.funcName != "main") {
-			emitByte(OP_RETURN);
-			this ->compiling_chunk = functions->at("main").get();
+		else if (match(TOKEN_RETURN) && this->compiling_chunk->function.funcName != "main") {
+			if (match(TOKEN_SEMICOLON)) {
+				parser.consume(TOKEN_RIGHT_BRACE, "Expect } after function declaration");
+				emitByte(OP_RETURN);
+			}
+			else {
+				expression();
+				parser.consume(TOKEN_SEMICOLON, "Expect ; after function declaration");
+				parser.consume(TOKEN_RIGHT_BRACE, "Expect } after function declaration");
+				emitByte(OP_RETURN_VALUE);
+			}
+			this->compiling_chunk = functions->at("main").get();
 		}
 		else {
 			expressionStatement();
@@ -538,13 +553,17 @@ public:
 	}
 
 	void call(std::string function_name) {
-		emitConstant(Value(function_name)); // pushing random value for now
+		//emitConstant(Value(function_name)); // pushing random value for now
 		if (functions->count(function_name) == 0) {
 			std::cout << "Definition for " << function_name << " not found" << "\n";
 			return;
 		}
 		int func_offset = makeConstant(Value(function_name));
 		emitBytes(OP_CALL, func_offset);
+	}
+
+	bool check_function_call(){
+		return functions->count(std::string(parser.current.start).substr(0, parser.current.length)) !=0;
 	}
 
 	void printStatement() {
@@ -606,8 +625,6 @@ public:
 
 		if (parser.current.type == TOKEN_LEFT_PAREN) {
 			std::string func_name = std::string(parser.previous.start).substr(0, parser.previous.length);
-			
-		
 			parser.consume(TOKEN_LEFT_PAREN, "Expect '('");
 			parser.consume(TOKEN_RIGHT_PAREN, "Expect ')'");
 			call(func_name);
@@ -631,7 +648,17 @@ public:
 		}
 
 		if (match(TOKEN_EQUAL)) {
-			expression();
+			if (check_function_call()) {
+				std::string function_name = std::string(parser.current.start).substr(0, parser.current.length);
+				parser.advance();
+				parser.consume(TOKEN_LEFT_PAREN, "Expect ( after function call");
+				parser.consume(TOKEN_RIGHT_PAREN, "Expect ) after function call");
+				call(function_name);
+			}
+			else {
+				std::cout << "calling expression\n";
+				expression();
+			}
 			emitBytes(setOp, (int)arg);
 		}
 		else {
