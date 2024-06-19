@@ -323,24 +323,21 @@ public:
 	bool had_error = 0;
 	std::map<TokenType, ParseRule> parser_rules_map;
 	std::vector<std::unique_ptr<Local>>locals;
-	std::unordered_map<std::string, Chunk*>* functions;
+	std::unordered_map<std::string, std::shared_ptr<Chunk>>* functions;
 	int localCount;
 	int scopeDepth;
 
 
-	Compiler(const char* source, Chunk* chunk, std::unordered_map<std::string, Chunk*>*vm_functions) :parser(source, &scanner) {
+	Compiler(const char* source, std::unordered_map<std::string, std::shared_ptr<Chunk>>*vm_functions) :parser(source, &scanner) {
 		this->source = source;
-		this->compiling_chunk = chunk;
-		std::unique_ptr<FunctionObject> mainFuncPointer = std::make_unique<FunctionObject>("main", 0);
-		this->compiling_chunk->function = *mainFuncPointer.get();
-		vm_functions->insert({this->compiling_chunk->function.funcName,chunk});
+		this->functions = vm_functions;
+		this->compiling_chunk = functions->at("main").get();
 		this->scanner.start = source;
 		this->scanner.current = source;
 		this->scanner.line = 0;
 		this->localCount = 0;
 		this->scopeDepth = 0;
-		this->functions = vm_functions;
-		parser_rules_map[TOKEN_LEFT_PAREN] = { std::bind(&Compiler::grouping, this), NULL, PREC_NONE };
+		parser_rules_map[TOKEN_LEFT_PAREN] = { std::bind(&Compiler::grouping, this), NULL, PREC_NONE};
 		parser_rules_map[TOKEN_RIGHT_PAREN] = { NULL,NULL,PREC_NONE };
 		parser_rules_map[TOKEN_LEFT_BRACE] = { NULL,     NULL,   PREC_NONE };
 		parser_rules_map[TOKEN_RIGHT_BRACE] = { NULL,     NULL,   PREC_NONE };
@@ -502,7 +499,7 @@ public:
 		}
 		else if (match(TOKEN_RIGHT_BRACE) && this->compiling_chunk->function.funcName != "main") {
 			emitByte(OP_RETURN);
-			this ->compiling_chunk = functions->at("main");
+			this ->compiling_chunk = functions->at("main").get();
 		}
 		else {
 			expressionStatement();
@@ -530,10 +527,24 @@ public:
 
 	void createFunction(std::string name) {
 		FunctionObject function = FunctionObject(name);
-		this->compiling_chunk_shared = std::make_shared<Chunk>(10);// 10 doesnt matter
+		if (functions->count(function.funcName) != 0) {
+			std::cout << "redefinition of function found" << "\n";
+			return;
+		}
+		this->compiling_chunk_shared= std::make_shared<Chunk>(10);// 10 doesnt matter
 		this->compiling_chunk = this->compiling_chunk_shared.get();
 		this->compiling_chunk->function = function;
-		this->functions->insert({ function.funcName,this->compiling_chunk });
+		this->functions->insert({ function.funcName,this->compiling_chunk_shared });
+	}
+
+	void call(std::string function_name) {
+		emitConstant(Value(function_name)); // pushing random value for now
+		if (functions->count(function_name) == 0) {
+			std::cout << "Definition for " << function_name << " not found" << "\n";
+			return;
+		}
+		int func_offset = makeConstant(Value(function_name));
+		emitBytes(OP_CALL, func_offset);
 	}
 
 	void printStatement() {
@@ -592,7 +603,18 @@ public:
 	}
 
 	void variable() {
-		namedVariable(parser.previous);
+
+		if (parser.current.type == TOKEN_LEFT_PAREN) {
+			std::string func_name = std::string(parser.previous.start).substr(0, parser.previous.length);
+			
+		
+			parser.consume(TOKEN_LEFT_PAREN, "Expect '('");
+			parser.consume(TOKEN_RIGHT_PAREN, "Expect ')'");
+			call(func_name);
+		}
+		else {
+			namedVariable(parser.previous);
+		}
 	}
 
 	void namedVariable(Token name) {

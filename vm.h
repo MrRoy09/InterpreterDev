@@ -15,23 +15,39 @@ typedef enum {
 	INTERPRET_RUNTIME_ERROR,
 } InterpretResult;
 
+class StackFrame {
+public:
+	std::string function_name;
+	int stack_start_offset;
+	int ip_offset;
+	StackFrame(std::string name, int offset,int ipoffset) {
+		function_name = name;
+		stack_start_offset = offset;
+		ip_offset = ipoffset;
+	}
+};
+
 class VM {
 public:
 	Chunk* chunk;
 	std::vector<Value> stack;
 	int ip;
 	std::unordered_map<std::string, Value> vm_globals;
-	std::unordered_map<std::string, Chunk*> vm_functions;
+	std::unordered_map<std::string, std::shared_ptr<Chunk>> vm_functions;
+	std::vector<std::shared_ptr<StackFrame>> vm_stackFrames;
 
 	InterpretResult interpret(std::string source) {
+		
 		Chunk chunk=Chunk(1);
-		vm_functions["main"]=&chunk;
+		vm_functions["main"]=std::make_shared<Chunk>(0);
 		const char* source_c_str = source.c_str();
-		Compiler compiler = Compiler(source_c_str,&chunk, &vm_functions);
+		Compiler compiler = Compiler(source_c_str, &vm_functions);
 		bool compilation_result = compiler.compile();
-		this->chunk = vm_functions["main"];
+		this->chunk = vm_functions["main"].get();
+		this->chunk->function.funcName="main";
 		this->ip = 0;
-		//disassembleChunk(vm_functions["myFunction"]);
+		vm_stackFrames.push_back(std::make_shared<StackFrame>("main",this->stack.size(), 0));
+		//disassembleChunk(vm_functions["myFunction"].get());
 		while (ip < this->chunk->opcodes.size()) {
 			InterpretResult result = run();
 			if (result != INTERPRET_OK) {
@@ -50,6 +66,16 @@ public:
 		runtimeError(args...);
 	}
 
+	void destroyStackFrame(std::string name) {
+		int stack_offset = (vm_stackFrames.end() - 1)->get()->stack_start_offset-vm_stackFrames.size()+1;
+		int ip_offset = (vm_stackFrames.end() - 1)->get()->ip_offset;
+		vm_stackFrames.pop_back();
+		if (stack_offset != 0) {
+			stack.erase(stack.end() - stack_offset , stack.end());
+		}
+		this->ip = ip_offset;
+	}
+
 	InterpretResult run() {
 			//stack_trace();	
 			int opcode = chunk->opcodes[this->ip];
@@ -57,6 +83,11 @@ public:
 			{
 			case OP_RETURN:
 				ip += 1;
+				if (chunk->function.funcName != "main") {
+					destroyStackFrame(chunk->function.funcName);
+					this->chunk = vm_functions[(vm_stackFrames.end()-1)->get()->function_name].get();
+					this->chunk->function.funcName = (vm_stackFrames.end() - 1)->get()->function_name;
+				}
 				//stack.clear();
 				return INTERPRET_OK;
 				break;
@@ -356,12 +387,19 @@ public:
 				return INTERPRET_OK;
 				break;
 			}
+			case OP_CALL: {
+				int offset = chunk->opcodes[ip + 1];
+				vm_stackFrames.push_back(std::make_shared<StackFrame>(this->chunk->constants[offset].returnString(), this->stack.size(), ip+2));
+				// does nothing for now
+				ip = 0;
+				this->chunk = vm_functions[this->chunk->constants[offset].returnString()].get();
+				return INTERPRET_OK;
+				break;
+			}
 			default:
-				//std::cout << "COMPILE ERROR : UNKNOWN INSTRUCTION ENCOUNTERED" << "\n";
 				runtimeError("Unknown Instruction Encountered");
 				return INTERPRET_RUNTIME_ERROR;
 				break;
-				
 			}
 	}
 
