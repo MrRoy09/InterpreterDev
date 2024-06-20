@@ -5,7 +5,8 @@
 #include <vector>
 #include <cinttypes>
 #include "objects.h"
-
+#include "tokens.h"
+#include "locals.h"
 typedef enum {
 	OP_RETURN,
 	OP_RETURN_VALUE,
@@ -42,11 +43,22 @@ public:
 	std::vector<Value> constants;
 	std::vector<int> lines;
 	FunctionObject function;
+	std::vector<std::unique_ptr<Local>>locals = {};
+	int localCount;
+	int scopeDepth;
 	int id;
 
 	Chunk(int id) {
+		if (id == 10) {
+			scopeDepth = 1;
+		}
+		else {
+			scopeDepth = 0;
+		}
+		localCount = 0;
 		this->id = id;
 	}
+
 	
 	void WriteChunk(int opcode,int line) {
 		opcodes.push_back(opcode);

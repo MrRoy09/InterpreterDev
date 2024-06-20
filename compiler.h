@@ -1,322 +1,16 @@
 #pragma once
 #include <string>
 #include <vector>
-#include "chunk.h"
 #include <functional>
+#include <unordered_map>
+#include <map>
+#include "chunk.h"
+#include "tokens.h"
+#include "parser.h"
 #include "common.h"
 #include "value.h"
 #include "objects.h"
-#include <unordered_map>
-#include <map>
-
-
-typedef enum {
-	// Single-character tokens.
-	TOKEN_LEFT_PAREN, TOKEN_RIGHT_PAREN,
-	TOKEN_LEFT_BRACE, TOKEN_RIGHT_BRACE,
-	TOKEN_COMMA, TOKEN_DOT, TOKEN_MINUS, TOKEN_PLUS,
-	TOKEN_SEMICOLON, TOKEN_SLASH, TOKEN_STAR,
-	// One or two character tokens.
-	TOKEN_BANG, TOKEN_BANG_EQUAL,
-	TOKEN_EQUAL, TOKEN_EQUAL_EQUAL,
-	TOKEN_GREATER, TOKEN_GREATER_EQUAL,
-	TOKEN_LESS, TOKEN_LESS_EQUAL,
-	// Literals.
-	TOKEN_IDENTIFIER, TOKEN_STRING, TOKEN_NUMBER,
-	// Keywords.
-	TOKEN_AND, TOKEN_CLASS, TOKEN_ELSE, TOKEN_FALSE,
-	TOKEN_FOR, TOKEN_FUN, TOKEN_IF, TOKEN_NIL, TOKEN_OR,
-	TOKEN_PRINT, TOKEN_RETURN, TOKEN_SUPER, TOKEN_THIS,
-	TOKEN_TRUE, TOKEN_VAR, TOKEN_WHILE,
-
-	TOKEN_ERROR, TOKEN_EOF, TOKEN_NONE,
-} TokenType;
-
-typedef enum {
-	PREC_NONE,
-	PREC_ASSIGNMENT,  // =
-	PREC_OR,          // or
-	PREC_AND,         // and
-	PREC_EQUALITY,    // == !=
-	PREC_COMPARISON,  // < > <= >=
-	PREC_TERM,        // + -
-	PREC_FACTOR,      // * /
-	PREC_UNARY,       // ! -
-	PREC_CALL,        // . ()
-	PREC_PRIMARY
-} Precedence;
-
-typedef struct {
-	std::function<void()> prefix;
-	std::function<void()> infix;
-	Precedence precedence;
-} ParseRule;
-
-
-class Token {
-public:
-	TokenType type;
-	const char* start;
-	int length;
-	int line;
-	Token(TokenType type, const char* start, int length, int line) {
-		this->type = type;
-		this->start = start;
-		this->length = length;
-		this->line = line;
-	}
-	Token() {
-		this->type = TOKEN_NONE;
-		this->start = " ";
-		this->length = 0;
-		this->line = 0;
-	}
-};
-
-class Local {
-public:
-	Token name;
-	int depth;
-
-	Local(Token name,int depth) {
-		this->name = name;
-		this->depth = depth;
-	}
-};
-
-
-
-class Scanner {
-public:
-	const char* start;
-	const char* current;
-	int line;
-	bool isAtEnd() {
-		return *current == '\0';
-	}
-
-	bool isDigit(char c) {
-		if (c >= '0' && c <= '9') {
-			return 1;
-		}
-		return 0;
-	}
-
-	bool isAlpha(char c) {
-		return ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_');
-	}
-
-	char advance() {
-		current++;
-		return current[-1];
-	}
-
-	bool match(char expected) {
-		if (isAtEnd()) return false;
-		if (*current != expected) return false;
-		current++;
-		return true;
-	}
-
-	void consumeWhitespace() {
-		if (*current == ' ' || *current == '\r' || *current == '\t') {
-			while (*current == ' ' || *current == '\r' || *current == '\t')
-				advance();
-		}
-		start = current;
-	}
-
-	Token scanToken() {
-		start = current;
-		// Handle for whitespaces 
-		if (isAtEnd()) return makeToken(TOKEN_EOF);
-		consumeWhitespace();
-		if (*current == '\n') {
-			line++;
-			advance();
-			consumeWhitespace();
-		}
-		
-		// Handle for comments
-		if (*current == '/' && *current + 1 == '/') {
-			while (*current != '\n' && !isAtEnd()) advance();
-		}
-
-		char c = advance();
-		if (isDigit(c)) return number();
-		if (isAlpha(c)) return identifier();
-		switch (c) {
-		case '(': return makeToken(TOKEN_LEFT_PAREN);
-		case ')': return makeToken(TOKEN_RIGHT_PAREN);
-		case '{': return makeToken(TOKEN_LEFT_BRACE);
-		case '}': return makeToken(TOKEN_RIGHT_BRACE);
-		case ';': return makeToken(TOKEN_SEMICOLON);
-		case ',': return makeToken(TOKEN_COMMA);
-		case '.': return makeToken(TOKEN_DOT);
-		case '-': return makeToken(TOKEN_MINUS);
-		case '+': return makeToken(TOKEN_PLUS);
-		case '/': return makeToken(TOKEN_SLASH);
-		case '*': return makeToken(TOKEN_STAR);
-
-		case '!':
-			return makeToken(
-				match('=') ? TOKEN_BANG_EQUAL : TOKEN_BANG);
-		case '=':
-			return makeToken(
-				match('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
-		case '<':
-			return makeToken(
-				match('=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);
-		case '>':
-			return makeToken(
-				match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
-
-		case '"':
-			return String();
-
-		}
-		return errorToken("Unexpected character.");
-	}
-
-	Token makeToken(TokenType type) {
-		Token token = Token(type, start, (int)(current - start),line);
-		//std::cout << token.type << "\n";
-		return token;
-	}
-
-	Token errorToken(const char* message) {
-		Token token = Token(TOKEN_ERROR, start, (int)(current - start),line);
-		return token;
-	}
-
-	Token String() {
-		while (*current != '"' && !isAtEnd()) {
-			if (*current == '\n') line++;
-			advance();
-		}
-		if (isAtEnd()) {
-			return errorToken("Unterminated String");
-		}
-		advance();
-		return makeToken(TOKEN_STRING);
-	}
-
-	Token number() {
-		while (isDigit(*current) && !isAtEnd()) {
-			advance();
-		}
-		if (*current == '.') {
-			advance();
-			while (isDigit(*current)) {
-				advance();
-			}
-		}
-		return makeToken(TOKEN_NUMBER);
-	}
-
-	Token identifier() {
-		while ((isAlpha(*current) || isDigit(*current)) && !isAtEnd()) {
-			advance();
-		}
-		return makeToken(TokenTypeIdentifier());
-	}
-
-	TokenType TokenTypeIdentifier() {
-
-		switch (*start) {
-		case 'a': return checkKeyword(1, 2, "nd", TOKEN_AND);
-		case 'c': return checkKeyword(1, 4, "lass", TOKEN_CLASS);
-		case 'e': return checkKeyword(1, 3, "lse", TOKEN_ELSE);
-		case 'f': {
-			if (current - start > 1) {
-				switch (start[1]) {
-					std::cout << start[1] << "\n";
-				case 'a': return checkKeyword(2, 3, "lse", TOKEN_FALSE);
-				case 'u': return checkKeyword(2, 1, "n", TOKEN_FUN);
-				case 'o': return checkKeyword(2, 1, "r", TOKEN_FOR);
-				}
-
-			}
-			break;
-		}
-		case 'i': return checkKeyword(1, 1, "f", TOKEN_IF);
-		case 'n': return checkKeyword(1, 2, "il", TOKEN_NIL);
-		case 'o': return checkKeyword(1, 1, "r", TOKEN_OR);
-		case 'p': return checkKeyword(1, 4, "rint", TOKEN_PRINT);
-		case 'r': return checkKeyword(1, 5, "eturn", TOKEN_RETURN);
-		case 's': return checkKeyword(1, 4, "uper", TOKEN_SUPER);
-		case 't': {
-			if (current - start > 1) {
-				switch (start[1]) {
-				case 'h': return checkKeyword(2, 2, "is", TOKEN_THIS);
-				case 'r': return checkKeyword(2, 2, "ue", TOKEN_TRUE);
-				}
-			}
-			break;
-		}
-		case 'v': return checkKeyword(1, 2, "ar", TOKEN_VAR);
-		case 'w': return checkKeyword(1, 4, "hile", TOKEN_WHILE);
-
-		}
-		return TOKEN_IDENTIFIER;
-	}
-
-	TokenType checkKeyword(int startC, int length, const char* check_str, TokenType checkToken) {
-		//std::cout << "CHECK KEYWORD CALLED WITH " << check_str << "\n";
-		if (current - start == startC + length &&
-			memcmp(start + startC, check_str, length) == 0) {
-			return checkToken;
-		}
-
-		return TOKEN_IDENTIFIER;
-	}
-};
-
-class Parser {
-public:
-	Token current;
-	Token previous; 
-	Scanner *scanner;
-	bool had_error = 0;
-	const char* source;
-
-	Parser(const char* src, Scanner* scanner) : source(src), current(TOKEN_NONE, 0, 0, 0), previous(TOKEN_NONE, 0, 0, 0) {
-		this->scanner = scanner;
-	}
-
-	void advance() {
-		previous = current;
-		current = scanner->scanToken();
-		//std::cout << previous.type <<" " << current.type<<"\n";
-	}
-
-	void consume(TokenType type, const char* message) {
-
-		if (current.type == type) {
-			advance();
-			return;
-		}
-		else {
-			//std::cout << "Current token type is " << current.type << " Expected type is " << type << "\n";
-			errorAtCurrent(message);
-		}
-	}
-
-	void errorAt(Token* token, const char* message) {
-		std::cerr << "Error at " << token->line << "\n";
-		std::cerr << message << "\n";
-		had_error = 1;
-	}
-
-	void errorAtCurrent(const char* message) {
-		errorAt(&current, message);
-	}
-
-	void error(const char* message) {
-		errorAt(&previous, message);
-	}
-	
-};
+#include "locals.h"
 
 class Compiler {
 public:
@@ -328,10 +22,9 @@ public:
 	Parser parser;
 	bool had_error = 0;
 	std::map<TokenType, ParseRule> parser_rules_map;
-	std::vector<std::unique_ptr<Local>>locals;
+	
 	std::unordered_map<std::string, std::shared_ptr<Chunk>>* functions;
-	int localCount;
-	int scopeDepth;
+
 
 
 	Compiler(const char* source, std::unordered_map<std::string, std::shared_ptr<Chunk>>*vm_functions) :parser(source, &scanner) {
@@ -341,8 +34,6 @@ public:
 		this->scanner.start = source;
 		this->scanner.current = source;
 		this->scanner.line = 0;
-		this->localCount = 0;
-		this->scopeDepth = 0;
 		parser_rules_map[TOKEN_LEFT_PAREN] = { std::bind(&Compiler::grouping, this), NULL, PREC_NONE};
 		parser_rules_map[TOKEN_RIGHT_PAREN] = { NULL,NULL,PREC_NONE };
 		parser_rules_map[TOKEN_LEFT_BRACE] = { NULL,     NULL,   PREC_NONE };
@@ -431,7 +122,7 @@ public:
 	uint8_t parseVariable(const char* errorMessage) {
 		parser.consume(TOKEN_IDENTIFIER, errorMessage);
 		declareVariable();
-		if (scopeDepth > 0) return 0;
+		if (this->compiling_chunk->scopeDepth > 0) return 0;
 		return identifierConstant(&parser.previous);
 	}
 
@@ -443,7 +134,7 @@ public:
 	}
 
 	void defineVariable(uint8_t global) {
-		if (scopeDepth > 0) {
+		if (this->compiling_chunk->scopeDepth > 0) {
 			markInitialized();
 			return;
 		}
@@ -451,13 +142,13 @@ public:
 	}
 
 	void declareVariable() {
-		if (scopeDepth == 0) return;
+		if (this->compiling_chunk->scopeDepth == 0) return;
 
 		Token* name = &parser.previous;
-		if (locals.size() > localCount) {
-			for (int i = localCount; i >= 0; i--) {
-				Local* local = locals[i].get();
-				if (local->depth != -1 && local->depth < this->scopeDepth) {
+		if (this->compiling_chunk->locals.size() > this->compiling_chunk->localCount) {
+			for (int i = this->compiling_chunk->localCount; i >= 0; i--) {
+				Local* local = this->compiling_chunk->locals[i].get();
+				if (local->depth != -1 && local->depth < this->compiling_chunk->scopeDepth) {
 					break;
 				}
 				if (identifiersEqual(name, &local->name)) {
@@ -471,12 +162,12 @@ public:
 	}
 
 	void addLocal(Token name) {
-		locals.push_back(std::make_unique<Local>(name, -1));
-		localCount++;
+		this->compiling_chunk->locals.push_back(std::make_unique<Local>(name, -1));
+		this->compiling_chunk->localCount++;
 	}
 
 	void markInitialized() {
-		locals[localCount - 1]->depth =scopeDepth;
+		this->compiling_chunk->locals[this->compiling_chunk->localCount - 1]->depth =this->compiling_chunk->scopeDepth;
 	}
 
 	void statement() {
@@ -506,12 +197,14 @@ public:
 		else if (match(TOKEN_RETURN) && this->compiling_chunk->function.funcName != "main") {
 			if (match(TOKEN_SEMICOLON)) {
 				parser.consume(TOKEN_RIGHT_BRACE, "Expect } after function declaration");
+				
 				emitByte(OP_RETURN);
 			}
 			else {
 				expression();
 				parser.consume(TOKEN_SEMICOLON, "Expect ; after function declaration");
 				parser.consume(TOKEN_RIGHT_BRACE, "Expect } after function declaration");
+			
 				emitByte(OP_RETURN_VALUE);
 			}
 			this->compiling_chunk = functions->at("main").get();
@@ -553,6 +246,7 @@ public:
 	}
 
 	void call(std::string function_name) {
+		
 		//emitConstant(Value(function_name)); // pushing random value for now
 		if (functions->count(function_name) == 0) {
 			std::cout << "Definition for " << function_name << " not found" << "\n";
@@ -656,7 +350,6 @@ public:
 				call(function_name);
 			}
 			else {
-				std::cout << "calling expression\n";
 				expression();
 			}
 			emitBytes(setOp, (int)arg);
@@ -667,8 +360,8 @@ public:
 	}
 
 	int resolveLocal(Token* name) {
-		for (int i = this->localCount - 1; i >= 0; i--) {
-			Local* local = this->locals[i].get();
+		for (int i = this->compiling_chunk->localCount - 1; i >= 0; i--) {
+			Local* local = this->compiling_chunk->locals[i].get();
 			if (identifiersEqual(name, &local->name)) {
 				if (local->depth == -1) {
 					continue;
@@ -850,14 +543,15 @@ public:
 	}
 
 	void beginScope() {
-		this->scopeDepth++;
+		this->compiling_chunk->scopeDepth++;
 	}
 
 	void endScope() {
-		this->scopeDepth--;
-		while (localCount > 0 && locals[localCount - 1]->depth >scopeDepth) {
+		this->compiling_chunk->scopeDepth--;
+		while (this->compiling_chunk->localCount > 0 && this->compiling_chunk->locals[this->compiling_chunk->localCount - 1]->depth >this->compiling_chunk->scopeDepth) {
+			this->compiling_chunk->locals.pop_back(); // destroy all variables with same scope
 			emitByte(OP_POP);
-			localCount--;
+			this->compiling_chunk->localCount--;
 		}
 	}
 

@@ -386,6 +386,7 @@ public:
 				return INTERPRET_OK;
 				break;
 			}
+
 			case OP_JUMP: {
 				ip += 3;
 				uint16_t offset = (uint16_t)((chunk->opcodes[ip - 2] << 8) | chunk->opcodes[ip - 1]);

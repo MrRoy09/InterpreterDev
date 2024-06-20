@@ -31,8 +31,8 @@ int main(int argc , const char*argv[])
     std::stringstream buffer;
     buffer << code.rdbuf();
     std::string code_string = buffer.str();
-    //vm.interpret(code_string);
-    repl(&vm);
+    vm.interpret(code_string);
+    //repl(&vm);
     return 0;
 }
 
