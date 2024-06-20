@@ -364,7 +364,7 @@ public:
 			}
 
 			case OP_GET_LOCAL: {
-				int slot = chunk->opcodes[++ip];
+				int slot = chunk->opcodes[++ip]+(vm_stackFrames.end()-1)->get()->stack_start_offset;
 				stack.push_back(stack[slot]);
 				ip += 1;
 				return INTERPRET_OK;
@@ -403,7 +403,7 @@ public:
 			}
 			case OP_CALL: {
 				int offset = chunk->opcodes[ip + 1];
-				vm_stackFrames.push_back(std::make_shared<StackFrame>(this->chunk->constants[offset].returnString(), this->stack.size(), ip+2));
+				vm_stackFrames.push_back(std::make_shared<StackFrame>(this->chunk->constants[offset].returnString(), this->stack.size()+vm_stackFrames.size()-1, ip + 2));
 				// does nothing for now
 				ip = 0;
 				this->chunk = vm_functions[this->chunk->constants[offset].returnString()].get();

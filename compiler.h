@@ -144,21 +144,21 @@ public:
 	void declareVariable() {
 		if (this->compiling_chunk->scopeDepth == 0) return;
 
-		Token* name = &parser.previous;
+		Token name = parser.previous;
 		if (this->compiling_chunk->locals.size() > this->compiling_chunk->localCount) {
 			for (int i = this->compiling_chunk->localCount; i >= 0; i--) {
 				Local* local = this->compiling_chunk->locals[i].get();
 				if (local->depth != -1 && local->depth < this->compiling_chunk->scopeDepth) {
 					break;
 				}
-				if (identifiersEqual(name, &local->name)) {
+				if (identifiersEqual(&name, &local->name)) {
 					std::cout << "Same variable name exists in this scope. " << "\n";
 					break;
 				}
 			}
 		}
 		
-		addLocal(*name);
+		addLocal(name);
 	}
 
 	void addLocal(Token name) {
