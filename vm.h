@@ -67,12 +67,10 @@ public:
 	}
 
 	void destroyStackFrame(std::string name) {
-		int stack_offset = (vm_stackFrames.end() - 1)->get()->stack_start_offset-vm_stackFrames.size()+2;
+		int stack_offset = (vm_stackFrames.end() - 1)->get()->stack_start_offset;
 		int ip_offset = (vm_stackFrames.end() - 1)->get()->ip_offset;
 		vm_stackFrames.pop_back();
-		if (stack_offset != 0) {
-			stack.erase(stack.end() - stack_offset , stack.end());
-		}
+		stack.erase(stack.begin() + stack_offset , stack.end());
 		this->ip = ip_offset;
 	}
 
@@ -364,7 +362,7 @@ public:
 			}
 
 			case OP_GET_LOCAL: {
-				int slot = chunk->opcodes[++ip]+(vm_stackFrames.end()-1)->get()->stack_start_offset;
+				int slot = chunk->opcodes[++ip] + (vm_stackFrames.end() - 1)->get()->stack_start_offset;
 				stack.push_back(stack[slot]);
 				ip += 1;
 				return INTERPRET_OK;
@@ -372,7 +370,7 @@ public:
 			}
 
 			case OP_SET_LOCAL: {
-				uint8_t slot = chunk->opcodes[++ip];
+				uint8_t slot = chunk->opcodes[++ip] + (vm_stackFrames.end() - 1)->get()->stack_start_offset;
 				this->stack[slot] = stack.back();
 				ip += 1;
 				return INTERPRET_OK;
@@ -403,7 +401,7 @@ public:
 			}
 			case OP_CALL: {
 				int offset = chunk->opcodes[ip + 1];
-				vm_stackFrames.push_back(std::make_shared<StackFrame>(this->chunk->constants[offset].returnString(), this->stack.size()+vm_stackFrames.size()-1, ip + 2));
+				vm_stackFrames.push_back(std::make_shared<StackFrame>(this->chunk->constants[offset].returnString(), stack.size()-(vm_stackFrames.end()-1)->get()->stack_start_offset, ip + 2));
 				// does nothing for now
 				ip = 0;
 				this->chunk = vm_functions[this->chunk->constants[offset].returnString()].get();

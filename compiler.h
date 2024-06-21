@@ -109,7 +109,16 @@ public:
 		uint8_t global = parseVariable("Expect variable name.");
 
 		if (match(TOKEN_EQUAL)) {
-			expression();
+			if (check_function_call()) {
+				std::string function_name = std::string(parser.current.start).substr(0, parser.current.length);
+				parser.advance();
+				parser.consume(TOKEN_LEFT_PAREN, "Expect ( after function call");
+				parser.consume(TOKEN_RIGHT_PAREN, "Expect ) after function call");
+				call(function_name);
+			}
+			else {
+				expression();
+			}
 		}
 		else {
 			emitByte(OP_NIL);
