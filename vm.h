@@ -401,7 +401,8 @@ public:
 			}
 			case OP_CALL: {
 				int offset = chunk->opcodes[ip + 1];
-				vm_stackFrames.push_back(std::make_shared<StackFrame>(this->chunk->constants[offset].returnString(), stack.size()-(vm_stackFrames.end()-1)->get()->stack_start_offset, ip + 2));
+				int arity = vm_functions[this->chunk->constants[offset].returnString()].get()->function.arity;
+				vm_stackFrames.push_back(std::make_shared<StackFrame>(this->chunk->constants[offset].returnString(), stack.size()-(vm_stackFrames.end()-1)->get()->stack_start_offset-arity, ip + 2));
 				// does nothing for now
 				ip = 0;
 				this->chunk = vm_functions[this->chunk->constants[offset].returnString()].get();

@@ -113,8 +113,17 @@ public:
 				std::string function_name = std::string(parser.current.start).substr(0, parser.current.length);
 				parser.advance();
 				parser.consume(TOKEN_LEFT_PAREN, "Expect ( after function call");
-				parser.consume(TOKEN_RIGHT_PAREN, "Expect ) after function call");
-				call(function_name);
+				int num_arguments = 0;
+				if (!match(TOKEN_RIGHT_PAREN)) {
+					expression();
+					num_arguments++;
+					while (match(TOKEN_COMMA)) {
+						num_arguments++;
+						expression();
+					}
+					parser.consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
+				}
+				call(function_name,num_arguments);
 			}
 			else {
 				expression();
@@ -236,29 +245,48 @@ public:
 	void funDeclaration() {
 		uint8_t global = parseVariable("Expect function name.");
 		std::string func_name =std::string(parser.previous.start).substr(0,parser.previous.length);
+		int arity = 0;
+
+		this->compiling_chunk_shared = std::make_shared<Chunk>(10);// 10 is the id for function chunks
+		this->compiling_chunk = this->compiling_chunk_shared.get();
+
 		parser.consume(TOKEN_LEFT_PAREN, "Expect '(' after function name.");
-		parser.consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
+		if (!match(TOKEN_RIGHT_PAREN)) {
+			uint8_t constant = parseVariable("Expect parameter name.");
+			defineVariable(constant);
+			arity++;
+			while (match(TOKEN_COMMA)) {
+				arity++;
+				uint8_t constant = parseVariable("Expect parameter name.");
+				defineVariable(constant);
+			}
+			parser.consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
+		}
+		
 		parser.consume(TOKEN_LEFT_BRACE, "Expect '{' after function declaration");
-		createFunction(func_name);
+		createFunction(func_name,arity);
 	}
 
-	void createFunction(std::string name) {
-		FunctionObject function = FunctionObject(name);
+	void createFunction(std::string name, int arity) {
+		FunctionObject function = FunctionObject(name,arity);
 		if (functions->count(function.funcName) != 0) {
 			std::cout << "redefinition of function found" << "\n";
 			return;
 		}
-		this->compiling_chunk_shared= std::make_shared<Chunk>(10);// 10 doesnt matter
-		this->compiling_chunk = this->compiling_chunk_shared.get();
+		
 		this->compiling_chunk->function = function;
 		this->functions->insert({ function.funcName,this->compiling_chunk_shared });
 	}
 
-	void call(std::string function_name) {
+	void call(std::string function_name, int num_arguments) {
 		
 		//emitConstant(Value(function_name)); // pushing random value for now
 		if (functions->count(function_name) == 0) {
 			std::cout << "Definition for " << function_name << " not found" << "\n";
+			return;
+		}
+		if (functions->at(function_name)->function.arity != num_arguments) {
+			std::cout << "not enuf arguments supplied" << "\n";
 			return;
 		}
 		int func_offset = makeConstant(Value(function_name));
@@ -329,8 +357,17 @@ public:
 		if (parser.current.type == TOKEN_LEFT_PAREN) {
 			std::string func_name = std::string(parser.previous.start).substr(0, parser.previous.length);
 			parser.consume(TOKEN_LEFT_PAREN, "Expect '('");
-			parser.consume(TOKEN_RIGHT_PAREN, "Expect ')'");
-			call(func_name);
+			int num_arguments = 0;
+			if (!match(TOKEN_RIGHT_PAREN)) {
+				expression();
+				num_arguments++;
+				while (match(TOKEN_COMMA)) {
+					num_arguments++;
+					expression();
+				}
+				parser.consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
+			}
+			call(func_name,num_arguments);
 		}
 		else {
 			namedVariable(parser.previous);
@@ -355,8 +392,17 @@ public:
 				std::string function_name = std::string(parser.current.start).substr(0, parser.current.length);
 				parser.advance();
 				parser.consume(TOKEN_LEFT_PAREN, "Expect ( after function call");
-				parser.consume(TOKEN_RIGHT_PAREN, "Expect ) after function call");
-				call(function_name);
+				int num_arguments = 0;
+				if (!match(TOKEN_RIGHT_PAREN)) {
+					expression();
+					num_arguments++;
+					while (match(TOKEN_COMMA)) {
+						num_arguments++;
+						expression();
+					}
+					parser.consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
+				}
+				call(function_name,num_arguments);
 			}
 			else {
 				expression();
