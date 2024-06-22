@@ -1,5 +1,7 @@
 #pragma once
 #include <string>
+#include <functional>
+
 
 class StringObject {
 public:
@@ -52,6 +54,7 @@ public:
 	void printFunction() {
 		std::cout << this->funcName<<"\n";
 	}
-
 };
+
+
 

@@ -11,10 +11,10 @@
 #include "value.h"
 #include "objects.h"
 #include "locals.h"
+#include "native_functions.h"
 
 class Compiler {
 public:
-
 	const char* source;
 	Chunk* compiling_chunk;
 	std::shared_ptr<Chunk> compiling_chunk_shared;
@@ -22,14 +22,13 @@ public:
 	Parser parser;
 	bool had_error = 0;
 	std::map<TokenType, ParseRule> parser_rules_map;
-	
 	std::unordered_map<std::string, std::shared_ptr<Chunk>>* functions;
+	std::unordered_map<std::string, NativeFunction>* native_functions;
 
-
-
-	Compiler(const char* source, std::unordered_map<std::string, std::shared_ptr<Chunk>>*vm_functions) :parser(source, &scanner) {
+	Compiler(const char* source, std::unordered_map<std::string, std::shared_ptr<Chunk>>*vm_functions,std::unordered_map<std::string,NativeFunction>* native_functions) :parser(source, &scanner) {
 		this->source = source;
 		this->functions = vm_functions;
+		this->native_functions = native_functions;
 		this->compiling_chunk = functions->at("main").get();
 		this->scanner.start = source;
 		this->scanner.current = source;
@@ -215,14 +214,12 @@ public:
 		else if (match(TOKEN_RETURN) && this->compiling_chunk->function.funcName != "main") {
 			if (match(TOKEN_SEMICOLON)) {
 				parser.consume(TOKEN_RIGHT_BRACE, "Expect } after function declaration");
-				
 				emitByte(OP_RETURN);
 			}
 			else {
 				expression();
 				parser.consume(TOKEN_SEMICOLON, "Expect ; after function declaration");
 				parser.consume(TOKEN_RIGHT_BRACE, "Expect } after function declaration");
-			
 				emitByte(OP_RETURN_VALUE);
 			}
 			this->compiling_chunk = functions->at("main").get();
@@ -269,7 +266,7 @@ public:
 
 	void createFunction(std::string name, int arity) {
 		FunctionObject function = FunctionObject(name,arity);
-		if (functions->count(function.funcName) != 0) {
+		if (functions->count(function.funcName) != 0 || native_functions->count(name)!=0) {
 			std::cout << "redefinition of function found" << "\n";
 			return;
 		}
@@ -279,22 +276,22 @@ public:
 	}
 
 	void call(std::string function_name, int num_arguments) {
-		
-		//emitConstant(Value(function_name)); // pushing random value for now
-		if (functions->count(function_name) == 0) {
+		if (functions->count(function_name) == 0 && native_functions->count(function_name)==0) {
 			std::cout << "Definition for " << function_name << " not found" << "\n";
 			return;
 		}
-		if (functions->at(function_name)->function.arity != num_arguments) {
-			std::cout << "not enuf arguments supplied" << "\n";
-			return;
+		if (functions->count(function_name) != 0) {
+			if (functions->at(function_name)->function.arity != num_arguments) {
+				std::cout << "not enuf arguments supplied" << "\n";
+				return;
+			}
 		}
 		int func_offset = makeConstant(Value(function_name));
 		emitBytes(OP_CALL, func_offset);
 	}
 
 	bool check_function_call(){
-		return functions->count(std::string(parser.current.start).substr(0, parser.current.length)) !=0;
+		return (functions->count(std::string(parser.current.start).substr(0, parser.current.length)) && native_functions->count(std::string(parser.current.start).substr(0, parser.current.length)))!=0;
 	}
 
 	void printStatement() {

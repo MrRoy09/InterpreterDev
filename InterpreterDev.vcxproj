@@ -138,6 +138,7 @@
   <ItemGroup>
     <ClCompile Include="debug.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="native_functions.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="chunk.h" />
@@ -145,6 +146,7 @@
     <ClInclude Include="compiler.h" />
     <ClInclude Include="debug.h" />
     <ClInclude Include="locals.h" />
+    <ClInclude Include="native_functions.h" />
     <ClInclude Include="objects.h" />
     <ClInclude Include="parser.h" />
     <ClInclude Include="tokens.h" />

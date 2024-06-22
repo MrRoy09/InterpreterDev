@@ -39,6 +39,16 @@ public:
 		start = current;
 	}
 
+	void consumeEmptyLine() {
+		if (*current =='\n') {
+			while (*current == '\n') {
+				advance();
+				consumeWhitespace();
+			}
+		}
+		start = current;
+	}
+
 	Token scanToken() {
 		start = current;
 		// Handle for whitespaces 
@@ -48,6 +58,7 @@ public:
 			line++;
 			advance();
 			consumeWhitespace();
+			consumeEmptyLine();
 		}
 
 		// Handle for comments
@@ -143,7 +154,6 @@ public:
 		case 'f': {
 			if (current - start > 1) {
 				switch (start[1]) {
-					std::cout << start[1] << "\n";
 				case 'a': return checkKeyword(2, 3, "lse", TOKEN_FALSE);
 				case 'u': return checkKeyword(2, 1, "n", TOKEN_FUN);
 				case 'o': return checkKeyword(2, 1, "r", TOKEN_FOR);
@@ -175,7 +185,6 @@ public:
 	}
 
 	TokenType checkKeyword(int startC, int length, const char* check_str, TokenType checkToken) {
-		//std::cout << "CHECK KEYWORD CALLED WITH " << check_str << "\n";
 		if (current - start == startC + length &&
 			memcmp(start + startC, check_str, length) == 0) {
 			return checkToken;

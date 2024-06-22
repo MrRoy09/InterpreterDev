@@ -8,6 +8,9 @@
 #include "value.h"
 #include "variant"
 #include <unordered_map>
+#include "native_functions.h"
+
+#define FRAMES_MAX 1000
 
 typedef enum {
 	INTERPRET_OK,
@@ -34,20 +37,22 @@ public:
 	int ip;
 	std::unordered_map<std::string, Value> vm_globals;
 	std::unordered_map<std::string, std::shared_ptr<Chunk>> vm_functions;
+	std::unordered_map<std::string, NativeFunction> vm_native_functions;
 	std::vector<std::shared_ptr<StackFrame>> vm_stackFrames;
 	
 
 	InterpretResult interpret(std::string source) {
+		initNativeFunctions(&vm_native_functions);
 		Chunk chunk = Chunk(1);
 		vm_functions["main"]= std::make_shared<Chunk>(0);
 		const char* source_c_str = source.c_str();
-		Compiler compiler = Compiler(source_c_str, &vm_functions);
+		Compiler compiler = Compiler(source_c_str, &vm_functions, &vm_native_functions);
 		bool compilation_result = compiler.compile();
 		this->chunk = vm_functions["main"].get();
 		this->chunk->function.funcName="main";
 		this->ip = 0;
 		vm_stackFrames.push_back(std::make_shared<StackFrame>("main",this->stack.size(), 0));
-		//disassembleChunk(vm_functions["myFunction"].get());
+		//disassembleChunk(vm_functions["recursive"].get());
 		while (ip < this->chunk->opcodes.size()) {
 			InterpretResult result = run();
 			if (result != INTERPRET_OK) {
@@ -401,11 +406,29 @@ public:
 			}
 			case OP_CALL: {
 				int offset = chunk->opcodes[ip + 1];
-				int arity = vm_functions[this->chunk->constants[offset].returnString()].get()->function.arity;
-				vm_stackFrames.push_back(std::make_shared<StackFrame>(this->chunk->constants[offset].returnString(), stack.size()-(vm_stackFrames.end()-1)->get()->stack_start_offset-arity, ip + 2));
-				// does nothing for now
+				std::string name = this->chunk->constants[offset].returnString();
+				if (vm_native_functions.count(name) != 0) {
+					NativeFn function = vm_native_functions.at(name).function;
+					Value* arguments = stack.size() == 0 ? NULL : &stack.back()- vm_native_functions.at(name).arguments;
+					stack.push_back(function(0,NULL));
+					ip += 2;
+					return INTERPRET_OK;
+					break;
+				}
+				int arity = vm_functions[name].get()->function.arity;
+				if (!checkStackFrameOverflow()) {
+					runtimeError("StackFrame overflow");
+					return INTERPRET_RUNTIME_ERROR;
+					break;
+				}
+				if (vm_stackFrames.size() > 2) {
+					vm_stackFrames.push_back(std::make_shared<StackFrame>(name, stack.size() - (vm_stackFrames.begin() + 1)->get()->stack_start_offset - arity, ip + 2));
+				}
+				else {
+					vm_stackFrames.push_back(std::make_shared<StackFrame>(name, stack.size() - (vm_stackFrames.end() - 1)->get()->stack_start_offset - arity, ip + 2));
+				}
 				ip = 0;
-				this->chunk = vm_functions[this->chunk->constants[offset].returnString()].get();
+				this->chunk = vm_functions[name].get();
 				return INTERPRET_OK;
 				break;
 			}
@@ -442,6 +465,13 @@ public:
 		else {
 			return 1;
 		}
+	}
+
+	bool checkStackFrameOverflow() {
+		if (vm_stackFrames.size() > FRAMES_MAX) {
+			return 0;
+		}
+		return 1;
 	}
 
 };

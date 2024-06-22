@@ -13,6 +13,11 @@ static int disassembleInstruction(Chunk* chunk, int opcode, int offset) {
 		return offset + 1;
 		break;
 
+	case OP_RETURN_VALUE:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "RETURN VALUE" << "\n";
+		return offset + 1;
+		break;
+
 	case OP_CONSTANT:
 		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "LOAD_CONSTANT" << " = "; 
 		chunk->constants[chunk->opcodes[offset + 1]].printValue();
@@ -107,6 +112,10 @@ static int disassembleInstruction(Chunk* chunk, int opcode, int offset) {
 	case OP_LOOP:
 		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_LOOP " << "TO OFFSET " << -(uint16_t)((chunk->opcodes[offset + 1] << 8) | chunk->opcodes[offset + 2]) + offset + 3 << "\n";
 		return offset + 3;
+		break;
+	case OP_CALL:
+		std::cout << " At line = " << chunk->lines[offset] << " At Offset " << offset << " Instruction " << "OP_CALL " << "\n";
+		return offset + 2;
 		break;
 
 	default:

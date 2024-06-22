@@ -21,6 +21,9 @@
     <ClCompile Include="debug.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="native_functions.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="common.h">
@@ -51,6 +54,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="locals.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="native_functions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
