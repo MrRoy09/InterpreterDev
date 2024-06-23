@@ -35,6 +35,7 @@ public:
 	Chunk* chunk;
 	std::vector<Value> stack;
 	int ip;
+	int* instruction;
 	std::unordered_map<std::string, Value> vm_globals;
 	std::unordered_map<std::string, std::shared_ptr<Chunk>> vm_functions;
 	std::unordered_map<std::string, NativeFunction> vm_native_functions;
