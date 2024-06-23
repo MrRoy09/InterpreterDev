@@ -37,11 +37,10 @@ public:
 	std::vector<Value> stack;
 	
 	int ip;
-	int* instruction;
 	std::unordered_map<std::string, Value> vm_globals;
 	std::unordered_map<std::string, std::shared_ptr<Chunk>> vm_functions;
 	std::unordered_map<std::string, NativeFunction> vm_native_functions;
-	std::vector<std::shared_ptr<StackFrame>> vm_stackFrames;
+	std::vector<std::unique_ptr<StackFrame>> vm_stackFrames;
 	
 
 	InterpretResult interpret(std::string source) {
@@ -55,7 +54,7 @@ public:
 		this->chunk = vm_functions["main"].get();
 		this->chunk->function.funcName="main";
 		this->ip = 0;
-		vm_stackFrames.push_back(std::make_shared<StackFrame>("main",this->stack.size(), 0));
+		vm_stackFrames.push_back(std::make_unique<StackFrame>("main",this->stack.size(), 0));
 		//disassembleChunk(vm_functions["recursive"].get());
 		InterpretResult result = run();
 		if (result != INTERPRET_OK) {
@@ -404,10 +403,10 @@ public:
 						break;
 					}
 					if (vm_stackFrames.size() > 2) {
-						vm_stackFrames.push_back(std::make_shared<StackFrame>(name, stack.size() - (vm_stackFrames.begin() + 1)->get()->stack_start_offset - arity, ip + 2));
+						vm_stackFrames.emplace_back(std::make_unique<StackFrame>(name, stack.size() - vm_stackFrames[1].get()->stack_start_offset - arity, ip + 2));
 					}
 					else {
-						vm_stackFrames.push_back(std::make_shared<StackFrame>(name, stack.size() - (vm_stackFrames.end() - 1)->get()->stack_start_offset - arity, ip + 2));
+						vm_stackFrames.emplace_back(std::make_unique<StackFrame>(name, stack.size() - vm_stackFrames.back().get()->stack_start_offset - arity, ip + 2));
 					}
 					ip = 0;
 					this->chunk = vm_functions[name].get();
