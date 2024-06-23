@@ -338,7 +338,7 @@ public:
 	}
 
 	void number() {
-		Value value =Value("double",strtod(parser.previous.start, NULL));
+		Value value =Value(strtod(parser.previous.start, NULL));
 		emitConstant(value);
 	}
 

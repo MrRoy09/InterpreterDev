@@ -11,6 +11,7 @@
 #include "native_functions.h"
 
 #define FRAMES_MAX 1000
+#define STACK_SIZE 1000
 
 typedef enum {
 	INTERPRET_OK,
@@ -34,6 +35,7 @@ class VM {
 public:
 	Chunk* chunk;
 	std::vector<Value> stack;
+	
 	int ip;
 	int* instruction;
 	std::unordered_map<std::string, Value> vm_globals;
@@ -45,6 +47,7 @@ public:
 	InterpretResult interpret(std::string source) {
 		initNativeFunctions(&vm_native_functions);
 		Chunk chunk = Chunk(1);
+		stack.reserve(STACK_SIZE);
 		vm_functions["main"]= std::make_shared<Chunk>(0);
 		const char* source_c_str = source.c_str();
 		Compiler compiler = Compiler(source_c_str, &vm_functions, &vm_native_functions);
@@ -54,13 +57,10 @@ public:
 		this->ip = 0;
 		vm_stackFrames.push_back(std::make_shared<StackFrame>("main",this->stack.size(), 0));
 		//disassembleChunk(vm_functions["recursive"].get());
-		while (ip < this->chunk->opcodes.size()) {
-			InterpretResult result = run();
-			if (result != INTERPRET_OK) {
-				return result;
-			}
+		InterpretResult result = run();
+		if (result != INTERPRET_OK) {
+			return result;
 		}
-		return INTERPRET_OK;
 	}
 
 	void runtimeError() {
@@ -72,7 +72,7 @@ public:
 		runtimeError(args...);
 	}
 
-	void destroyStackFrame(std::string name) {
+	void destroyStackFrame(std::string &name) {
 		int stack_offset = (vm_stackFrames.end() - 1)->get()->stack_start_offset;
 		int ip_offset = (vm_stackFrames.end() - 1)->get()->ip_offset;
 		vm_stackFrames.pop_back();
@@ -80,8 +80,9 @@ public:
 		this->ip = ip_offset;
 	}
 
-	InterpretResult run() {
-			//stack_trace();	
+	InterpretResult run() {	
+		int size = chunk->opcodes.size();
+		while (ip < size) {
 			int opcode = chunk->opcodes[this->ip];
 			switch (opcode)
 			{
@@ -93,8 +94,6 @@ public:
 					this->chunk = vm_functions[(vm_stackFrames.end() - 1)->get()->function_name].get();
 					this->chunk->function.funcName = (vm_stackFrames.end() - 1)->get()->function_name;
 				}
-				//stack.clear();
-				return INTERPRET_OK;
 				break;
 
 			case OP_RETURN_VALUE: {
@@ -104,22 +103,16 @@ public:
 				this->chunk = vm_functions[(vm_stackFrames.end() - 1)->get()->function_name].get();
 				this->chunk->function.funcName = (vm_stackFrames.end() - 1)->get()->function_name;
 				stack.push_back(returnValue);
-				return INTERPRET_OK;
 				break;
 			}
 
-				
+
 			case OP_CONSTANT:
-				
-				//std::cout << "EXECUTING LOAD CONSTANT" << "\n";
-				stack.push_back(chunk->constants[chunk->opcodes[this->ip + 1]]);
+				stack.push_back(std::move(chunk->constants[chunk->opcodes[this->ip + 1]]));
 				ip += 2;
-				return INTERPRET_OK;
 				break;
 
-			case OP_NEGATE:{
-				//std::cout << "EXECUTING NEGATE" << "\n";
-
+			case OP_NEGATE: {
 				if (!check_stack_unary()) {
 					runtimeError("Not enough value on stack for operation");
 					return INTERPRET_RUNTIME_ERROR;
@@ -129,64 +122,65 @@ public:
 					runtimeError("Operand must be a double");
 					return INTERPRET_RUNTIME_ERROR;
 				}
-				
+
 				double val = -(stack.back().returnDouble());
 				stack.pop_back();
-				stack.push_back(Value("double",val));
+				stack.push_back(Value(val));
 				ip += 1;
-				return INTERPRET_OK;
 				break;
 			}
 
 			case OP_ADD: {
-				//std::cout << "EXECUTING ADDITION" << "\n";
 				if (!check_stack_bin()) {
 					runtimeError("Not enough value on stack for operation");
 					ip += 1;
 					return INTERPRET_RUNTIME_ERROR;
 					break;
 				}
-
-				if (stack.back().type == "string" && stack[stack.size()-2].type=="string") {
-					std::string val1 = stack.back().returnString(); stack.pop_back();
-					std::string val2 = stack.back().returnString(); stack.pop_back();
-					stack.push_back(Value(val2 + val1));
+				if (stack.back().value.index() != (stack.end() - 2)->value.index()) {
+					runtimeError("Cannot perform addition between given types");
 					ip += 1;
-					return INTERPRET_OK;
+					return INTERPRET_RUNTIME_ERROR;
 					break;
-				}
-				else if (stack.back().type == "double" && stack[stack.size() - 2].type == "double") {
-					double val1 = stack.back().returnDouble();
-					stack.pop_back();
-					double val2 = stack.back().returnDouble();
-					stack.pop_back();
-					stack.push_back(Value("double", val1 + val2));
-					ip += 1;
-					return INTERPRET_OK;
-					break;
-				}
-				else {
+				};
+				switch (stack.back().value.index()) {
+				case 0: {
 					runtimeError("Operation not permitted between given types");
 					ip += 1;
 					return INTERPRET_RUNTIME_ERROR;
 					break;
 				}
+				case 1: {
+					double val1 = stack.back().returnDouble();
+					stack.pop_back();
+					double val2 = stack.back().returnDouble();
+					stack.pop_back();
+					stack.emplace_back(std::move(Value(val1 + val2)));
+					ip += 1;
+					break;
+				}
+				case 2: {
+					std::string val1 = stack.back().returnString(); stack.pop_back();
+					std::string val2 = stack.back().returnString(); stack.pop_back();
+					stack.push_back(Value(val2 + val1));
+					ip += 1;
+					break;
+					}
+				} 
+				break;
 			}
 			case OP_SUB: {
-				//std::cout << "EXECUTING SUBTRACTION" << "\n";
 				if (!check_stack_bin()) {
 					runtimeError("Not enough value on stack for operation");
 					ip += 1;
-					return INTERPRET_RUNTIME_ERROR;
 					break;
 				}
 				double val1 = -stack.back().returnDouble();
 				stack.pop_back();
 				double val2 = -stack.back().returnDouble();
 				stack.pop_back();
-				stack.push_back(Value("double",val1 - val2));
+				stack.push_back(Value(val1 - val2));
 				ip += 1;
-				return INTERPRET_OK;
 				break;
 			}
 
@@ -195,16 +189,14 @@ public:
 				if (!check_stack_bin()) {
 					runtimeError("Not enough value on stack for operation");
 					ip += 1;
-					return INTERPRET_RUNTIME_ERROR;
 					break;
 				}
 				double val1 = -stack.back().returnDouble();
 				stack.pop_back();
 				double val2 = -stack.back().returnDouble();
 				stack.pop_back();
-				stack.push_back(Value("double",val1 * val2));
+				stack.push_back(Value(val1 * val2));
 				ip += 1;
-				return INTERPRET_OK;
 				break;
 			}
 
@@ -212,7 +204,7 @@ public:
 				//std::cout << "EXECUTING DIVISION" << "\n";
 				if (!check_stack_bin()) {
 					runtimeError("Not enough value on stack for operation");
-					
+
 					ip += 1;
 					return INTERPRET_RUNTIME_ERROR;
 					break;
@@ -222,9 +214,8 @@ public:
 				double val2 = -stack.back().returnDouble();
 				if (val1 != 0) {
 					stack.pop_back();
-					stack.push_back(Value("double",val2 / val1));
+					stack.push_back(Value(val2 / val1));
 					ip += 1;
-					return INTERPRET_OK;
 				}
 				else {
 					std::cout << "Error division by zero at line " << chunk->lines[ip];
@@ -236,79 +227,79 @@ public:
 			case OP_NIL: {
 				stack.push_back(Value("nil"));
 				ip++;
-				return INTERPRET_OK;
+			
 				break;
 			}
 
 			case OP_TRUE: {
 				bool val = 1;
-				stack.push_back(Value("bool", val));
+				stack.push_back(Value(val));
 				ip++;
-				return INTERPRET_OK;
+			
 				break;
 			}
 
 			case OP_FALSE: {
 				bool val = 0;
-				stack.push_back(Value("bool", val));
+				stack.push_back(Value(val));
 				ip++;
-				return INTERPRET_OK;
+				
 				break;
 			}
 
 			case OP_NOT: {
-				if (stack.back().type == "bool"){
+				if (std::holds_alternative<bool>(stack.back().value)) {
 					bool val = stack.back().returnBool();
 					stack.pop_back();
-					stack.push_back(Value("bool", !val));
+					stack.push_back(Value(!val));
 					ip++;
-					return INTERPRET_OK;
+					break;
 				}
-				else if (stack.back().type == "double") {
+				else if (std::holds_alternative<double>(stack.back().value)) {
 					bool val = stack.back().returnDouble();
 					stack.pop_back();
-					stack.push_back(Value("bool", !val));
+					stack.push_back(Value(!val));
 					ip++;
-					return INTERPRET_OK;
+					break;
 				}
-				else if (stack.back().type == "nil") {
+				else if (stack.back().isNill) {
 					bool val = 1;
 					stack.pop_back();
-					stack.push_back(Value("bool", val));
+					stack.push_back(Value(val));
 					ip++;
-					return INTERPRET_OK;
+					break;
 				}
 				else {
 					runtimeError("Error encountered in Not operator");
 					ip++;
 					return INTERPRET_RUNTIME_ERROR;
+					break;
 				}
 			}
-			case OP_EQUAL:{
+			case OP_EQUAL: {
 				Value a = stack.back(); stack.pop_back();
 				Value b = stack.back(); stack.pop_back();
-				stack.push_back(Value("bool", a.ValuesEqual(b)));
+				stack.push_back(Value(a.ValuesEqual(b)));
 				ip++;
-				return INTERPRET_OK;
-				
+				break;
 			}
 
 			case OP_GREATER: {
 				Value a = stack.back(); stack.pop_back();
 				Value b = stack.back(); stack.pop_back();
 				bool val = a.returnDouble() < b.returnDouble();
-				stack.push_back(Value("bool", val));
+				stack.push_back(std::move(Value(val)));
 				ip++;
-				return INTERPRET_OK;
+				break;
 			}
 
 			case OP_LESS: {
 				Value a = stack.back(); stack.pop_back();
 				Value b = stack.back(); stack.pop_back();
 				bool val = a.returnDouble() > b.returnDouble();
-				stack.push_back(Value("bool", val));
+				stack.emplace_back(std::move(Value(val)));
 				ip++;
-				return INTERPRET_OK;
+				break;
 			}
 
 			case OP_PRINT: {
@@ -320,14 +311,12 @@ public:
 				value.printValue();
 				printf("\n");
 				ip++;
-				return INTERPRET_OK;
 				break;
 			}
 
 			case OP_POP: {
 				stack.pop_back();
 				ip++;
-				return INTERPRET_OK;
 				break;
 			}
 
@@ -337,24 +326,20 @@ public:
 				vm_globals[name.getString()] = stack.back();
 				stack.pop_back();
 				ip += 2;
-				return INTERPRET_OK;
 				break;
 			}
 
 			case OP_GET_GLOBAL: {
-				
 				StringObject name = chunk->constants[chunk->opcodes[this->ip + 1]].returnStringObject();
 				Value value;
-				if (vm_globals.count(name.getString())==0) {
-					runtimeError("Undefined variable" , name.getString());
+				if (vm_globals.count(name.getString()) == 0) {
+					runtimeError("Undefined variable", name.getString());
 					ip += 2;
 					return INTERPRET_RUNTIME_ERROR;
 					break;
 				}
-				Value element = vm_globals.at(name.getString());
-				stack.push_back(element);
-				ip+=2;
-				return INTERPRET_OK;
+				stack.emplace_back(std::move(vm_globals.at(name.getString())));
+				ip += 2;
 				break;
 			}
 
@@ -363,7 +348,6 @@ public:
 				//std::cout << name.getString() << "\n";
 				vm_globals[name.getString()] = stack.back();
 				ip += 2;
-				return INTERPRET_OK;
 				break;
 			}
 
@@ -371,7 +355,6 @@ public:
 				int slot = chunk->opcodes[++ip] + (vm_stackFrames.end() - 1)->get()->stack_start_offset;
 				stack.push_back(stack[slot]);
 				ip += 1;
-				return INTERPRET_OK;
 				break;
 			}
 
@@ -379,15 +362,13 @@ public:
 				uint8_t slot = chunk->opcodes[++ip] + (vm_stackFrames.end() - 1)->get()->stack_start_offset;
 				this->stack[slot] = stack.back();
 				ip += 1;
-				return INTERPRET_OK;
 				break;
 			}
 
 			case OP_JUMP_IF_FALSE: {
 				ip += 3;
-				uint16_t offset = (uint16_t)((chunk->opcodes[ip-2] << 8) | chunk->opcodes[ip-1]);
+				uint16_t offset = (uint16_t)((chunk->opcodes[ip - 2] << 8) | chunk->opcodes[ip - 1]);
 				if (stack.back().returnBool() == false) ip += offset;
-				return INTERPRET_OK;
 				break;
 			}
 
@@ -395,14 +376,12 @@ public:
 				ip += 3;
 				uint16_t offset = (uint16_t)((chunk->opcodes[ip - 2] << 8) | chunk->opcodes[ip - 1]);
 				ip += offset;
-				return INTERPRET_OK;
 				break;
 			}
 			case OP_LOOP: {
 				ip += 3;
 				uint16_t offset = (uint16_t)((chunk->opcodes[ip - 2] << 8) | chunk->opcodes[ip - 1]);
 				ip -= offset;
-				return INTERPRET_OK;
 				break;
 			}
 			case OP_CALL: {
@@ -410,10 +389,10 @@ public:
 				std::string name = this->chunk->constants[offset].returnString();
 				if (vm_native_functions.count(name) != 0) {
 					NativeFn function = vm_native_functions.at(name).function;
-					Value* arguments = stack.size() == 0 ? NULL : &stack.back()- vm_native_functions.at(name).arguments;
-					stack.push_back(function(0,NULL));
+					Value* arguments = stack.size() == 0 ? NULL : &stack.back() - vm_native_functions.at(name).arguments;
+					stack.push_back(function(0, NULL));
 					ip += 2;
-					return INTERPRET_OK;
+					
 					break;
 				}
 				int arity = vm_functions[name].get()->function.arity;
@@ -430,7 +409,7 @@ public:
 				}
 				ip = 0;
 				this->chunk = vm_functions[name].get();
-				return INTERPRET_OK;
+				
 				break;
 			}
 			default:
@@ -438,6 +417,8 @@ public:
 				return INTERPRET_RUNTIME_ERROR;
 				break;
 			}
+		}
+		return INTERPRET_OK;
 	}
 
 	void stack_trace() {

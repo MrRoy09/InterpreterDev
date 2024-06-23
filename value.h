@@ -6,44 +6,37 @@
 
 class Value {
 public:
-	const char* type;
+	bool isNill;
 	std::variant<bool, double, StringObject> value;
 
-	Value(const char* type, bool value) {
-		this->type = type;
+	Value(bool value) {
+		this->isNill = 0;
 		this->value = value;
 	}
 
-	Value(const char* type, double value) {
-		this->type = type;
+	Value(double value) {
+		this->isNill = 0;
 		this->value = value;
 	}
 
 	Value(std::string string) {
-		this->type = "string";
+		this->isNill = 0;
 		this->value = StringObject(string);
 	}
 
-
-	Value(const char* type) {
-		double nil = 0;
-		this->type = "nil";
-		this->value = nil;
-	}
-
 	Value() {
-		this->type = "nil";
+		this->isNill = 0;
 	}
 
 	void printValue() {
 		if (std::holds_alternative<bool>(value)) {
-			std::cout << type<<":" << std::get<bool>(value) << "\n";
+			std::cout<<std::get<bool>(value)<<"\n";
 		}
 		else if (std::holds_alternative<double>(value)) {
-			std::cout <<type<<":"<< std::get<double>(value) << "\n";
+			std::cout<<std::get<double>(value) << "\n";
 		}
 		else if (std::holds_alternative<StringObject>(value)) {
-			std::cout << type << ":" << std::get<StringObject>(value).getString() << "\n";
+			std::cout <<std::get<StringObject>(value).getString() << "\n";
 		}
 	}
 
@@ -93,21 +86,21 @@ public:
 	}
 
 	bool ValuesEqual(Value b) {
-		if (this->type != b.type) return false;
+		if (this->value.index() != b.value.index()) return false;
 
-		else if (this->type == "bool") {
+		else if (std::holds_alternative<bool>(value)){
 			return this->returnBool() == b.returnBool();
 		}
 
-		else if (this->type == "double") {
+		else if (std::holds_alternative<double>(value)) {
 			return this->returnDouble() == b.returnDouble();
 		}
 
-		else if (this->type == "nil") {
+		else if (this->isNill) {
 			return true;
 		}
 
-		else if (this->type == "string") {
+		else if (std::holds_alternative<StringObject>(value)) {
 			return this->returnString() == b.returnString();
 		}
 	}

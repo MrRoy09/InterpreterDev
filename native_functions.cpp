@@ -7,7 +7,7 @@ auto start = std::chrono::steady_clock::now();
 Value Clock(int argCount, Value* args) {
 	auto now = std::chrono::steady_clock::now();
 	double x = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
-	return Value("double", x);
+	return Value(x);
 }
 
 NativeFunction clock_function = NativeFunction(0, Clock);
