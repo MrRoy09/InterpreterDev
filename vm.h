@@ -93,6 +93,7 @@ public:
 					stack.push_back(Value());
 					this->chunk = vm_functions[(vm_stackFrames.end() - 1)->get()->function_name].get();
 					this->chunk->function.funcName = (vm_stackFrames.end() - 1)->get()->function_name;
+					size = this->chunk->opcodes.size();
 				}
 				break;
 
@@ -103,6 +104,7 @@ public:
 				this->chunk = vm_functions[(vm_stackFrames.end() - 1)->get()->function_name].get();
 				this->chunk->function.funcName = (vm_stackFrames.end() - 1)->get()->function_name;
 				stack.push_back(returnValue);
+				size = this->chunk->opcodes.size();
 				break;
 			}
 
@@ -392,25 +394,26 @@ public:
 					Value* arguments = stack.size() == 0 ? NULL : &stack.back() - vm_native_functions.at(name).arguments;
 					stack.push_back(function(0, NULL));
 					ip += 2;
-					
 					break;
-				}
-				int arity = vm_functions[name].get()->function.arity;
-				if (!checkStackFrameOverflow()) {
-					runtimeError("StackFrame overflow");
-					return INTERPRET_RUNTIME_ERROR;
-					break;
-				}
-				if (vm_stackFrames.size() > 2) {
-					vm_stackFrames.push_back(std::make_shared<StackFrame>(name, stack.size() - (vm_stackFrames.begin() + 1)->get()->stack_start_offset - arity, ip + 2));
 				}
 				else {
-					vm_stackFrames.push_back(std::make_shared<StackFrame>(name, stack.size() - (vm_stackFrames.end() - 1)->get()->stack_start_offset - arity, ip + 2));
+					int arity = vm_functions[name].get()->function.arity;
+					if (!checkStackFrameOverflow()) {
+						runtimeError("StackFrame overflow");
+						return INTERPRET_RUNTIME_ERROR;
+						break;
+					}
+					if (vm_stackFrames.size() > 2) {
+						vm_stackFrames.push_back(std::make_shared<StackFrame>(name, stack.size() - (vm_stackFrames.begin() + 1)->get()->stack_start_offset - arity, ip + 2));
+					}
+					else {
+						vm_stackFrames.push_back(std::make_shared<StackFrame>(name, stack.size() - (vm_stackFrames.end() - 1)->get()->stack_start_offset - arity, ip + 2));
+					}
+					ip = 0;
+					this->chunk = vm_functions[name].get();
+					size = this->chunk->opcodes.size();
+					break;
 				}
-				ip = 0;
-				this->chunk = vm_functions[name].get();
-				
-				break;
 			}
 			default:
 				runtimeError("Unknown Instruction Encountered");
