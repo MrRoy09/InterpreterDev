@@ -133,12 +133,12 @@ public:
 			}
 
 			case OP_ADD: {
-				if (!check_stack_bin()) {
+				/*if (!check_stack_bin()) {
 					runtimeError("Not enough value on stack for operation");
 					ip += 1;
 					return INTERPRET_RUNTIME_ERROR;
 					break;
-				}
+				}*/
 				if (stack.back().value.index() != (stack.end() - 2)->value.index()) {
 					runtimeError("Cannot perform addition between given types");
 					ip += 1;
@@ -172,27 +172,27 @@ public:
 				break;
 			}
 			case OP_SUB: {
-				if (!check_stack_bin()) {
+				/*if (!check_stack_bin()) {
 					runtimeError("Not enough value on stack for operation");
 					ip += 1;
 					break;
-				}
+				}*/
 				double val1 = -stack.back().returnDouble();
 				stack.pop_back();
 				double val2 = -stack.back().returnDouble();
 				stack.pop_back();
-				stack.push_back(Value(val1 - val2));
+				stack.emplace_back(std::move(Value(val1 - val2)));
 				ip += 1;
 				break;
 			}
 
 			case OP_MUL: {
 				//std::cout << "EXECUTING MULTIPLICATION" << "\n";
-				if (!check_stack_bin()) {
+				/*if (!check_stack_bin()) {
 					runtimeError("Not enough value on stack for operation");
 					ip += 1;
 					break;
-				}
+				}*/
 				double val1 = -stack.back().returnDouble();
 				stack.pop_back();
 				double val2 = -stack.back().returnDouble();
@@ -204,13 +204,13 @@ public:
 
 			case OP_DIV: {
 				//std::cout << "EXECUTING DIVISION" << "\n";
-				if (!check_stack_bin()) {
+				/*if (!check_stack_bin()) {
 					runtimeError("Not enough value on stack for operation");
 
 					ip += 1;
 					return INTERPRET_RUNTIME_ERROR;
 					break;
-				}
+				}*/
 				double val1 = -stack.back().returnDouble();
 				stack.pop_back();
 				double val2 = -stack.back().returnDouble();
