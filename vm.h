@@ -322,32 +322,32 @@ public:
 			}
 
 			case OP_DEFINE_GLOBAL: {
-				StringObject name = chunk->constants[chunk->opcodes[this->ip + 1]].returnStringObject();
+				std::string name = chunk->constants[chunk->opcodes[this->ip + 1]].returnString();
 				//std::cout << name.getString() << "\n";
-				vm_globals[name.getString()] = stack.back();
+				vm_globals[name] = stack.back();
 				stack.pop_back();
 				ip += 2;
 				break;
 			}
 
 			case OP_GET_GLOBAL: {
-				StringObject name = chunk->constants[chunk->opcodes[this->ip + 1]].returnStringObject();
+				std::string name = chunk->constants[chunk->opcodes[this->ip + 1]].returnString();
 				Value value;
-				if (vm_globals.count(name.getString()) == 0) {
-					runtimeError("Undefined variable", name.getString());
-					ip += 2;
-					return INTERPRET_RUNTIME_ERROR;
-					break;
+				try {
+					stack.emplace_back(std::move(vm_globals.at(name)));
 				}
-				stack.emplace_back(std::move(vm_globals.at(name.getString())));
+				catch (const std::out_of_range& e) {
+					runtimeError("Unidenfied variable name ", name);
+					return INTERPRET_RUNTIME_ERROR;
+				}
 				ip += 2;
 				break;
 			}
 
 			case OP_SET_GLOBAL: {
-				StringObject name = chunk->constants[chunk->opcodes[this->ip + 1]].returnStringObject();
+				std::string name = chunk->constants[chunk->opcodes[this->ip + 1]].returnString();
 				//std::cout << name.getString() << "\n";
-				vm_globals[name.getString()] = stack.back();
+				vm_globals[name] = stack.back();
 				ip += 2;
 				break;
 			}
@@ -457,5 +457,4 @@ public:
 		}
 		return 1;
 	}
-
 };

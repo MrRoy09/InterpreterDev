@@ -7,7 +7,7 @@
 class Value {
 public:
 	bool isNill;
-	std::variant<bool, double, StringObject> value;
+	std::variant<bool, double, std::string> value;
 
 	Value(bool value) {
 		this->isNill = 0;
@@ -21,7 +21,7 @@ public:
 
 	Value(std::string string) {
 		this->isNill = 0;
-		this->value = StringObject(string);
+		this->value = string;
 	}
 
 	Value() {
@@ -29,14 +29,20 @@ public:
 	}
 
 	void printValue() {
-		if (std::holds_alternative<bool>(value)) {
-			std::cout<<std::get<bool>(value)<<"\n";
+		if (isNill) {
+			std::cout << "NILL" << "\n";
+			return;
 		}
-		else if (std::holds_alternative<double>(value)) {
-			std::cout<<std::get<double>(value) << "\n";
-		}
-		else if (std::holds_alternative<StringObject>(value)) {
-			std::cout <<std::get<StringObject>(value).getString() << "\n";
+		switch (value.index()) {
+		case 0:
+			std::cout << std::get<bool>(value) << "\n";
+			break;
+		case 1:
+			std::cout << std::get<double>(value) << "\n";
+			break;
+		case 2:
+			std::cout << std::get<std::string>(value) << "\n";
+			break;
 		}
 	}
 
@@ -62,45 +68,26 @@ public:
 	}
 
 	std::string returnString() {
-		if (std::holds_alternative<StringObject>(value)) {
-			return std::get <StringObject>(value).getString();
+		if (std::holds_alternative<std::string>(value)) {
+			return std::get <std::string>(value);
 		}
 		else {
 			throw std::bad_variant_access();
-		}
-	}
-
-	uint32_t returnHash() {
-		if (std::holds_alternative<StringObject>(value)) {
-			return std::get<StringObject>(value).getHash();
-		}
-		else {
-			throw std::bad_variant_access();
-		}
-	}
-
-	StringObject returnStringObject() {
-		if (std::holds_alternative<StringObject>(value)) {
-			return std::get<StringObject>(value);
 		}
 	}
 
 	bool ValuesEqual(Value b) {
 		if (this->value.index() != b.value.index()) return false;
+		if (this->isNill && b.isNill) return true;
 
-		else if (std::holds_alternative<bool>(value)){
+		switch (this->value.index()) {
+		case 0:
 			return this->returnBool() == b.returnBool();
-		}
-
-		else if (std::holds_alternative<double>(value)) {
+			break;
+		case 1:
 			return this->returnDouble() == b.returnDouble();
-		}
-
-		else if (this->isNill) {
-			return true;
-		}
-
-		else if (std::holds_alternative<StringObject>(value)) {
+			break;
+		case 2:
 			return this->returnString() == b.returnString();
 		}
 	}
