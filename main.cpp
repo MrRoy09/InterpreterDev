@@ -27,7 +27,7 @@ static void repl(VM *vm) {
 int main(int argc , const char*argv[])
 {
     VM vm;
-    std::ifstream code("count.txt");
+    std::ifstream code("code.txt");
     std::stringstream buffer;
     buffer << code.rdbuf();
     std::string code_string = buffer.str();
