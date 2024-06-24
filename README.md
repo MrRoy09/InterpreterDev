@@ -4,11 +4,7 @@ A simple scripting language designed following the book "Crafting Interpreters" 
 
 # Build
 
-Build using CMAKE to generate project files.
-
-```
-Build using visual studio solution
-```
+Build in release mode using visual studio solution
 
 # Syntax
 
