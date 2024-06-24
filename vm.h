@@ -46,7 +46,6 @@ public:
 	InterpretResult interpret(std::string source) {
 		initNativeFunctions(&vm_native_functions);
 		Chunk chunk = Chunk(1);
-		stack.reserve(STACK_SIZE);
 		vm_functions["main"]= std::make_shared<Chunk>(0);
 		const char* source_c_str = source.c_str();
 		Compiler compiler = Compiler(source_c_str, &vm_functions, &vm_native_functions);
