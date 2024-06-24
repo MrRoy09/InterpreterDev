@@ -7,7 +7,7 @@ A simple scripting language designed following the book "Crafting Interpreters" 
 Build using CMAKE to generate project files.
 
 ```
-cmake -S . -B build/ -D CMAKE_BUILD_TYPE=Release
+Build using visual studio solution
 ```
 
 # Syntax
