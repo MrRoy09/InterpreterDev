@@ -144,7 +144,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="chunk.h" />
-    <ClInclude Include="common.h" />
     <ClInclude Include="compiler.h" />
     <ClInclude Include="debug.h" />
     <ClInclude Include="locals.h" />
