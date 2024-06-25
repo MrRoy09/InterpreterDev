@@ -33,6 +33,10 @@ int main(int argc, const char *argv[])
     if (argc == 2)
     {
         std::ifstream code(argv[1]);
+        if (!code) {
+            std::cout << "file not found" << "\n";
+            return 1;
+        }
         std::stringstream buffer;
         buffer << code.rdbuf();
         std::string code_string = buffer.str();
