@@ -32,7 +32,7 @@ int main(int argc, const char *argv[])
     VM vm;
     if (argc == 2)
     {
-        std::ifstream code("code.txt");
+        std::ifstream code(argv[1]);
         std::stringstream buffer;
         buffer << code.rdbuf();
         std::string code_string = buffer.str();
